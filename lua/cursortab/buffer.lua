@@ -67,10 +67,19 @@ end
 ---@type table<string, boolean>
 local gitignore_cache = {}
 
+-- Files that should never be treated as gitignored
+local gitignore_exceptions = {
+	["COMMIT_EDITMSG"] = true,
+}
+
 -- Check if a file is ignored by git (cached).
 ---@param path string Absolute file path
 ---@return boolean
 local function is_gitignored(path)
+	local filename = vim.fn.fnamemodify(path, ":t")
+	if gitignore_exceptions[filename] then
+		return false
+	end
 	local cached = gitignore_cache[path]
 	if cached ~= nil then
 		return cached
