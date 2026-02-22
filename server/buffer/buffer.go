@@ -95,6 +95,22 @@ func (b *NvimBuffer) OriginalLines() []string { return b.originalLines }
 
 func (b *NvimBuffer) DiffHistories() []*types.DiffEntry { return b.diffHistories }
 
+// noHistoryFiles is the list of filenames for which diff history is not recorded.
+var noHistoryFiles = []string{
+	"COMMIT_EDITMSG",
+}
+
+// skipHistory returns true for files where diff history should not be recorded.
+func (b *NvimBuffer) skipHistory() bool {
+	base := filepath.Base(b.path)
+	for _, name := range noHistoryFiles {
+		if base == name {
+			return true
+		}
+	}
+	return false
+}
+
 // SetFileContext restores file-specific state when switching back to a previously edited file.
 // This is called by the engine after detecting a file switch.
 func (b *NvimBuffer) SetFileContext(previousLines, originalLines []string, diffHistories []*types.DiffEntry) {
@@ -331,7 +347,9 @@ func (b *NvimBuffer) CommitPending() {
 
 	// Extract granular diffs - one DiffEntry per contiguous changed region
 	diffEntries := extractGranularDiffs(originalRangeLines, lines)
-	b.diffHistories = append(b.diffHistories, diffEntries...)
+	if !b.skipHistory() {
+		b.diffHistories = append(b.diffHistories, diffEntries...)
+	}
 
 	// Compute the final buffer state after applying the completion
 	newLines := make([]string, 0, len(b.lines)-((endLineInclusive-startLine)+1)+len(lines))
@@ -386,7 +404,9 @@ func (b *NvimBuffer) commitUserEditsInternal() bool {
 		return false
 	}
 
-	b.diffHistories = append(b.diffHistories, diffEntries...)
+	if !b.skipHistory() {
+		b.diffHistories = append(b.diffHistories, diffEntries...)
+	}
 
 	// Save checkpoint as previous state (for sweep provider)
 	b.previousLines = make([]string, len(b.originalLines))
