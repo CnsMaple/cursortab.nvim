@@ -207,6 +207,26 @@ func TestGroupChanges_MultiLineMixedHints(t *testing.T) {
 	assert.Equal(t, 2, len(groups), "different types = separate groups")
 }
 
+// TestGroupChanges_ConsecutiveModificationsWithRenderHint verifies that consecutive
+// modifications group together even when the first has a character-level render hint.
+// A multi-line group cannot use a single-line hint, so it is cleared on merge.
+func TestGroupChanges_ConsecutiveModificationsWithRenderHint(t *testing.T) {
+	changes := map[int]LineChange{
+		1: {Type: ChangeReplaceChars, Content: "def foo_new(data):", OldContent: "def foo_ol(data):", ColStart: 8, ColEnd: 15},
+		2: {Type: ChangeModification, Content: "    return x, y", OldContent: "    return x"},
+	}
+
+	groups := GroupChanges(changes)
+
+	assert.Equal(t, 1, len(groups), "consecutive modifications should form 1 group")
+	assert.Equal(t, "modification", groups[0].Type, "group type")
+	assert.Equal(t, 1, groups[0].StartLine, "start line")
+	assert.Equal(t, 2, groups[0].EndLine, "end line")
+	assert.Equal(t, "", groups[0].RenderHint, "render hint cleared for multi-line group")
+	assert.Equal(t, 2, len(groups[0].Lines), "both new lines present")
+	assert.Equal(t, 2, len(groups[0].OldLines), "both old lines present")
+}
+
 func TestCalculateCursorPosition_Modification(t *testing.T) {
 	changes := map[int]LineChange{
 		1: {Type: ChangeModification, Content: "modified line"},

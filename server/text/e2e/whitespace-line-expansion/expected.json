@@ -5,29 +5,16 @@
     "groups": [
       {
         "buffer_line": 1,
-        "col_end": 14,
-        "col_start": 0,
-        "end_line": 1,
-        "lines": [
-          "    Parameters"
-        ],
-        "old_lines": [
-          ""
-        ],
-        "render_hint": "append_chars",
-        "start_line": 1,
-        "type": "modification"
-      },
-      {
-        "buffer_line": 2,
         "end_line": 2,
         "lines": [
+          "    Parameters",
           "    ----------"
         ],
         "old_lines": [
+          "",
           "        "
         ],
-        "start_line": 2,
+        "start_line": 1,
         "type": "modification"
       },
       {

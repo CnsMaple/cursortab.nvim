@@ -433,7 +433,8 @@ local function render_single_modification(group, nvim_line, virt_line_offset, cu
 	end
 end
 
--- Render multi-line modification group: side-by-side (old lines highlighted, new content to the right)
+-- Render multi-line modification group: each old line highlighted as deletion,
+-- each new line shown side-by-side to the right (same style as single-line modifications).
 ---@param group Group
 ---@param virt_line_offset integer Number of virtual lines added above this point
 ---@param current_win integer
@@ -442,22 +443,23 @@ local function render_modification_group(group, virt_line_offset, current_win, c
 	local syntax_ft = vim.api.nvim_get_option_value("filetype", { buf = current_buf })
 	local line_count = group.end_line - group.start_line + 1
 
-	-- Compute max width of old lines for positioning the overlay
-	local max_old_width = 0
+	-- Compute max display width across all old lines so overlays align
+	local max_width = 0
 	for i = 1, line_count do
-		local line_nvim = group.buffer_line + i - 2 -- 0-indexed
+		local line_nvim = group.buffer_line + i - 2
 		local line_content = vim.api.nvim_buf_get_lines(current_buf, line_nvim, line_nvim + 1, false)[1] or ""
-		local width = vim.fn.strdisplaywidth(line_content)
-		if width > max_old_width then
-			max_old_width = width
+		local w = vim.fn.strdisplaywidth(line_content)
+		if w > max_width then
+			max_width = w
 		end
 	end
+	local overlay_col = max_width + 2
 
-	-- Highlight each old line with deletion background
 	for i = 1, line_count do
 		local line_nvim = group.buffer_line + i - 2 -- 0-indexed
 		local line_content = vim.api.nvim_buf_get_lines(current_buf, line_nvim, line_nvim + 1, false)[1] or ""
 
+		-- Highlight old line with deletion background
 		if line_content ~= "" then
 			local extmark_id = vim.api.nvim_buf_set_extmark(current_buf, daemon.get_namespace_id(), line_nvim, 0, {
 				end_col = #line_content,
@@ -466,21 +468,21 @@ local function render_modification_group(group, virt_line_offset, current_win, c
 			})
 			table.insert(completion_extmarks, { buf = current_buf, extmark_id = extmark_id })
 		end
-	end
 
-	-- Create single overlay window to the right with all new lines
-	if #group.lines > 0 then
-		local first_line_nvim = group.buffer_line - 1 -- 0-indexed
-		local overlay_win, overlay_buf, _ = create_overlay_window(
-			current_win,
-			first_line_nvim + virt_line_offset,
-			max_old_width + 2,
-			group.lines,
-			syntax_ft,
-			"CursorTabModification",
-			nil
-		)
-		table.insert(completion_windows, { win_id = overlay_win, buf_id = overlay_buf })
+		-- Show corresponding new line to the right, aligned with the group
+		local new_line = group.lines[i]
+		if new_line and new_line ~= "" then
+			local overlay_win, overlay_buf, _ = create_overlay_window(
+				current_win,
+				line_nvim + virt_line_offset,
+				overlay_col,
+				new_line,
+				syntax_ft,
+				"CursorTabModification",
+				nil
+			)
+			table.insert(completion_windows, { win_id = overlay_win, buf_id = overlay_buf })
+		end
 	end
 end
 

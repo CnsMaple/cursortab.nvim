@@ -5,26 +5,16 @@
     "groups": [
       {
         "buffer_line": 8,
-        "end_line": 1,
-        "lines": [
-          "def calculate_min_max(data):"
-        ],
-        "old_lines": [
-          "def calculate_min_ma(data):"
-        ],
-        "start_line": 1,
-        "type": "modification"
-      },
-      {
-        "buffer_line": 9,
         "end_line": 2,
         "lines": [
+          "def calculate_min_max(data):",
           "    return np.min(data), np.max(data)"
         ],
         "old_lines": [
+          "def calculate_min_ma(data):",
           "    return np.std(data)"
         ],
-        "start_line": 2,
+        "start_line": 1,
         "type": "modification"
       }
     ],

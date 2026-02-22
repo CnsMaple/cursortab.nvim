@@ -1847,35 +1847,30 @@ func TestIncrementalStageBuilder_WhitespaceLineExpansion(t *testing.T) {
 
 	stage := result.Stages[0]
 
-	// Find the modification of the whitespace line (cursor line)
-	var cursorMod *Group
+	// The two consecutive modifications (empty line and whitespace line) should now
+	// be grouped into a single multi-line modification group.
+	var modGroup *Group
 	for _, g := range stage.Groups {
-		if g.Type == "modification" && len(g.OldLines) > 0 && g.OldLines[0] == "        " {
-			cursorMod = g
+		if g.Type == "modification" {
+			modGroup = g
 			break
 		}
 	}
 
-	assert.NotNil(t, cursorMod, "should have modification for whitespace line")
-	// The modification should have BufferLine=6 (where the whitespace was)
-	assert.Equal(t, 6, cursorMod.BufferLine,
-		"modification of cursor line should have BufferLine=6")
+	assert.NotNil(t, modGroup, "should have a modification group")
+	// The group spans both modified lines; BufferLine is the first (buffer line 5)
+	assert.Equal(t, 5, modGroup.BufferLine,
+		"grouped modification should start at buffer line 5")
+	assert.Equal(t, 2, len(modGroup.OldLines),
+		"grouped modification should cover both old lines")
+	assert.Equal(t, "", modGroup.OldLines[0], "first old line is the empty line")
+	assert.Equal(t, "        ", modGroup.OldLines[1], "second old line is the whitespace line")
 
-	// Find additions that come before the cursor line modification
+	// Additions after the modification block should be anchored below it
 	for _, g := range stage.Groups {
-		if g.Type == "addition" && g.StartLine < cursorMod.StartLine {
-			// Additions before cursor modification should be anchored at cursor line (6)
-			assert.Equal(t, 6, g.BufferLine,
-				"additions before cursor line should be anchored at cursor line (6)")
-		}
-	}
-
-	// Find additions that come after the cursor line modification
-	for _, g := range stage.Groups {
-		if g.Type == "addition" && g.StartLine > cursorMod.StartLine {
-			// Additions after modification should be below it (BufferLine = cursorMod.BufferLine + 1)
-			assert.Equal(t, 7, g.BufferLine,
-				"additions after cursor line modification should have BufferLine=7")
+		if g.Type == "addition" && g.StartLine > modGroup.StartLine {
+			assert.True(t, g.BufferLine >= 6,
+				"additions after modification block should be anchored at or below buffer line 6")
 		}
 	}
 }

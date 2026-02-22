@@ -80,12 +80,16 @@ func parseStages(data []map[string]any) []stageInfo {
 
 // stageFinalCursor returns the absolute (1-indexed row, 0-indexed col) cursor
 // position in the new text after applying all stages, using the last stage's
-// cursor_line/cursor_col from the diff result.
-func stageFinalCursor(stages []stageInfo) (row, col int) {
+// cursor_line/cursor_col from the diff result. If cursor_line and cursor_col
+// are both -1, the cursor didn't move, so the old position is preserved.
+func stageFinalCursor(stages []stageInfo, oldRow, oldCol int) (row, col int) {
 	if len(stages) == 0 {
-		return 0, -1
+		return oldRow, oldCol
 	}
 	last := stages[len(stages)-1]
+	if last.CursorLine == -1 && last.CursorCol == -1 {
+		return oldRow, oldCol
+	}
 	return last.StartLine + last.CursorLine - 1, last.CursorCol
 }
 
@@ -258,6 +262,8 @@ func buildPreview(oldText, newText string, stages []stageInfo, cursorRow, cursor
 	actions := map[int]lineAction{}
 	// additions keyed by the buffer line they appear BEFORE (virt_lines_above)
 	additionsBefore := map[int][]previewLine{}
+	// new lines for multi-line mod groups, inserted after the last old line of the group
+	modGroupsAfter := map[int][]previewLine{}
 	// additions that go after the last buffer line
 	var additionsAfterEnd []previewLine
 
@@ -305,12 +311,22 @@ func buildPreview(oldText, newText string, stages []stageInfo, cursorRow, cursor
 							kind: "delete_chars",
 							hl:   lineHighlight{RenderHint: "delete_chars", ColStart: g.ColStart, ColEnd: g.ColEnd},
 						}
-					} else {
-						// Side-by-side: old line with del bg, new content with mod bg to the right
+					} else if isSingle {
+						// Single-line side-by-side: old (del bg) with new content to the right
 						actions[oldBufLine] = lineAction{
 							kind:     "mod",
 							sideText: newContent,
 							sideHL:   lineHighlight{Class: "mod"},
+						}
+					} else {
+						// Multi-line group: show old lines as deletions, new lines after the block.
+						// Collect new lines on the first pass (relLine == g.StartLine).
+						actions[oldBufLine] = lineAction{kind: "del"}
+						if relLine == g.EndLine {
+							for _, newLine := range g.Lines {
+								modGroupsAfter[oldBufLine] = append(modGroupsAfter[oldBufLine],
+									previewLine{Text: newLine, HL: lineHighlight{Class: "mod"}})
+							}
 						}
 					}
 				case "deletion":
@@ -350,6 +366,11 @@ func buildPreview(oldText, newText string, stages []stageInfo, cursorRow, cursor
 			}
 		} else {
 			preview = append(preview, previewLine{Text: line, HL: lineHighlight{}})
+		}
+
+		// Insert new lines for multi-line mod groups after the last old line of the group
+		if modLines, ok := modGroupsAfter[bufLine]; ok {
+			preview = append(preview, modLines...)
 		}
 	}
 
@@ -394,7 +415,7 @@ func renderTextPane(b *strings.Builder, label string, lines []string, cursorRow,
 }
 
 func renderPipelineCol(b *strings.Builder, label string, oldText, newText string, stages []stageInfo, oldCursorRow, oldCursorCol int) {
-	newCursorRow, newCursorCol := stageFinalCursor(stages)
+	newCursorRow, newCursorCol := stageFinalCursor(stages, oldCursorRow, oldCursorCol)
 
 	b.WriteString("<div class=\"pipeline-col\">\n")
 	fmt.Fprintf(b, "<div class=\"pipeline-label\">%s</div>\n", html.EscapeString(label))
