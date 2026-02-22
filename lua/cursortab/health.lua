@@ -8,6 +8,25 @@ function M.check()
 	local daemon_status = daemon.check_daemon_status()
 	local channel_status = daemon.get_channel_status()
 
+	-- Identity
+	vim.health.start("Identity")
+	local nv = vim.version()
+	vim.health.info(
+		"neovim: "
+			.. string.format("%d.%d.%d", nv.major, nv.minor, nv.patch)
+			.. " ("
+			.. vim.uv.os_uname().sysname ---@diagnostic disable-line: undefined-field
+			.. ")"
+	)
+
+	local device_id_path = cfg.state_dir .. "/device_id"
+	if vim.fn.filereadable(device_id_path) == 1 then
+		local did = table.concat(vim.fn.readfile(device_id_path), "")
+		vim.health.info("device_id: " .. vim.trim(did))
+	else
+		vim.health.info("device_id: not yet created")
+	end
+
 	-- Daemon
 	vim.health.start("Daemon")
 	if not daemon.is_enabled() then
