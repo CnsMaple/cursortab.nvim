@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+func allMaxLinesPass(f fixtureResult) bool {
+	for _, mlr := range f.MaxLinesResults {
+		if !mlr.ApplyPass || !mlr.PartialAcceptPass {
+			return false
+		}
+	}
+	return true
+}
+
 type groupInfo struct {
 	Type       string
 	StartLine  int
@@ -476,8 +485,9 @@ body { font-family: sans-serif; background: #010409; color: #e6edf3; margin: 20p
 h1 { font-size: 16px; margin-bottom: 16px; display: flex; align-items: baseline; color: #f0f6fc; }
 .stats { font-size: 13px; font-weight: 400; margin-left: auto; display: flex; gap: 8px; }
 .fixture { border: 1px solid #30363d; margin-bottom: 24px; overflow: hidden; background: #0d1117; }
-.hdr { background: #161b22; padding: 8px 12px; display: flex; gap: 10px; align-items: center; font-size: 13px; cursor: pointer; user-select: none; }
-.hdr h2 { font-size: 13px; font-weight: 600; color: #f0f6fc; }
+.hdr { background: #161b22; padding: 12px 12px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; cursor: pointer; user-select: none; }
+.hdr-statuses { display: flex; flex-wrap: wrap; gap: 4px 8px; width: 100%; margin: 0; }
+.hdr h2 { font-size: 13px; font-weight: 600; color: #f0f6fc; margin: 0; }
 .copy-btn { background: none; border: 1px solid #30363d; color: #7d8590; cursor: pointer; padding: 2px 6px; font-size: 11px; line-height: 1; }
 .copy-btn:hover { color: #e6edf3; border-color: #545d68; }
 .filters { display: flex; gap: 6px; margin-bottom: 16px; }
@@ -528,7 +538,7 @@ pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; }
 	var totalFixtures, allPass, statusFailed, statusUnverified int
 	for _, f := range fixtures {
 		totalFixtures++
-		if !f.BatchPass || !f.IncrementalPass || !f.ApplyPass || !f.PartialAcceptPass {
+		if !f.BatchPass || !f.IncrementalPass || !allMaxLinesPass(f) {
 			statusFailed++
 		} else if !f.Verified {
 			statusUnverified++
@@ -565,53 +575,69 @@ pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; }
 		if !f.IncrementalPass {
 			iStatus = `<span class="fail">inc:FAIL</span>`
 		}
-		aStatus := `<span class="pass">apply:pass</span>`
-		if !f.ApplyPass {
-			aStatus = `<span class="fail">apply:FAIL</span>`
-		}
-		pStatus := `<span class="pass">partial:pass</span>`
-		if !f.PartialAcceptPass {
-			pStatus = `<span class="fail">partial:FAIL</span>`
+		var applyStatuses string
+		for _, mlr := range f.MaxLinesResults {
+			label := "default"
+			if mlr.MaxLines > 0 {
+				label = fmt.Sprintf("ml%d", mlr.MaxLines)
+			}
+			if mlr.ApplyPass {
+				applyStatuses += fmt.Sprintf(` <span class="pass">apply(%s):pass</span>`, label)
+			} else {
+				applyStatuses += fmt.Sprintf(` <span class="fail">apply(%s):FAIL</span>`, label)
+			}
+			if mlr.PartialAcceptPass {
+				applyStatuses += fmt.Sprintf(` <span class="pass">partial(%s):pass</span>`, label)
+			} else {
+				applyStatuses += fmt.Sprintf(` <span class="fail">partial(%s):FAIL</span>`, label)
+			}
 		}
 		vStatus := `<span class="pass">verified</span>`
 		if !f.Verified {
 			vStatus = `<span class="unverified">unverified</span>`
 		}
 
-		allPass := f.BatchPass && f.IncrementalPass && f.ApplyPass && f.PartialAcceptPass && f.Verified
+		mlPass := allMaxLinesPass(f)
+		allPass := f.BatchPass && f.IncrementalPass && mlPass && f.Verified
 		escapedName := html.EscapeString(f.Name)
 		status := "passed"
-		if !f.BatchPass || !f.IncrementalPass || !f.ApplyPass || !f.PartialAcceptPass {
+		if !f.BatchPass || !f.IncrementalPass || !mlPass {
 			status = "failed"
 		} else if !f.Verified {
 			status = "unverified"
 		}
-		fmt.Fprintf(&b, "<details class=\"fixture\" data-status=\"%s\" open>\n<summary class=\"hdr\"><h2>%s</h2><button class=\"copy-btn\" data-name=\"%s\" onclick=\"navigator.clipboard.writeText(this.dataset.name)\">copy</button> %s %s %s %s %s <span class=\"meta\">cursor=(%d,%d) vp=[%d,%d]</span></summary>\n",
-			status, escapedName, escapedName, vStatus, bStatus, iStatus, aStatus, pStatus,
+		fmt.Fprintf(&b, "<details class=\"fixture\" data-status=\"%s\" open>\n<summary class=\"hdr\"><h2>%s</h2><button class=\"copy-btn\" data-name=\"%s\" onclick=\"navigator.clipboard.writeText(this.dataset.name)\">copy</button><span class=\"meta\">cursor=(%d,%d) vp=[%d,%d]</span><span class=\"hdr-statuses\">%s %s %s%s</span></summary>\n",
+			status, escapedName, escapedName,
 			f.Params.CursorRow, f.Params.CursorCol,
-			f.Params.ViewportTop, f.Params.ViewportBottom)
+			f.Params.ViewportTop, f.Params.ViewportBottom,
+			vStatus, bStatus, iStatus, applyStatuses)
 
 		b.WriteString("<div class=\"pipelines\">\n")
 		renderPipelineCol(&b, "Batch", f.OldText, f.NewText, batchStages, f.Params.CursorRow, f.Params.CursorCol)
 		renderPipelineCol(&b, "Incremental", f.OldText, f.NewText, incStages, f.Params.CursorRow, f.Params.CursorCol)
 		b.WriteString("</div>\n")
 
-		if !f.ApplyPass && len(f.ApplyLines) > 0 {
-			b.WriteString("<div class=\"apply-section\">\n")
-			b.WriteString("<div class=\"cols-2\">\n")
-			renderTextPane(&b, "Applied (got)", f.ApplyLines, 0, -1)
-			renderTextPane(&b, "Expected (new.txt)", strings.Split(f.NewText, "\n"), 0, -1)
-			b.WriteString("</div>\n")
-			b.WriteString("</div>\n")
-		}
-
-		if !f.PartialAcceptPass && len(f.PartialAcceptLines) > 0 {
-			b.WriteString("<div class=\"apply-section\">\n")
-			b.WriteString("<div class=\"cols-2\">\n")
-			renderTextPane(&b, "Partial Accept (got)", f.PartialAcceptLines, 0, -1)
-			renderTextPane(&b, "Expected (new.txt)", strings.Split(f.NewText, "\n"), 0, -1)
-			b.WriteString("</div>\n")
-			b.WriteString("</div>\n")
+		for _, mlr := range f.MaxLinesResults {
+			label := "default"
+			if mlr.MaxLines > 0 {
+				label = fmt.Sprintf("maxLines=%d", mlr.MaxLines)
+			}
+			if !mlr.ApplyPass && len(mlr.ApplyLines) > 0 {
+				b.WriteString("<div class=\"apply-section\">\n")
+				b.WriteString("<div class=\"cols-2\">\n")
+				renderTextPane(&b, fmt.Sprintf("Applied %s (got)", label), mlr.ApplyLines, 0, -1)
+				renderTextPane(&b, "Expected (new.txt)", strings.Split(f.NewText, "\n"), 0, -1)
+				b.WriteString("</div>\n")
+				b.WriteString("</div>\n")
+			}
+			if !mlr.PartialAcceptPass && len(mlr.PartialAcceptLines) > 0 {
+				b.WriteString("<div class=\"apply-section\">\n")
+				b.WriteString("<div class=\"cols-2\">\n")
+				renderTextPane(&b, fmt.Sprintf("Partial Accept %s (got)", label), mlr.PartialAcceptLines, 0, -1)
+				renderTextPane(&b, "Expected (new.txt)", strings.Split(f.NewText, "\n"), 0, -1)
+				b.WriteString("</div>\n")
+				b.WriteString("</div>\n")
+			}
 		}
 
 		renderJSONSection(&b, f.BatchActual, f.IncrementalActual, !allPass)

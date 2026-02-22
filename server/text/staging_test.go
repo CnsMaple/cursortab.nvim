@@ -1577,17 +1577,28 @@ func TestCreateStages_NoViewportInfo(t *testing.T) {
 	assert.Equal(t, 10, result.Stages[0].BufferStart, "closer stage first")
 }
 
-func TestGetStageNewLineRange_DerivedFromOldRange(t *testing.T) {
-	// New range is derived from old range using the LineMapping.
+func TestGetStageNewLineRangeFromChanges_DerivedFromChanges(t *testing.T) {
+	// New range is derived from changes' NewLineNum values and unchanged old
+	// lines within the buffer range.
 	// Old lines 5-7, where old 6 is deleted → new has lines 5 and 7 (shifted).
 	mapping := &LineMapping{
 		OldToNew: []int{1, 2, 3, 4, -1, 5, 6, 7, 8, 9},
 		NewToOld: []int{1, 2, 3, 4, 6, 7, 8, 9, 10},
 	}
-	// bufStart=5, bufEnd=7, baseLineOffset=1 → oldRel 5..7
-	// Line before: OldToNew[3]=4 → newStart=5
-	// Line after: OldToNew[7]=7 → newEnd=6
-	newStart, newEnd := getStageNewLineRange(5, 7, 1, false, mapping)
+	stage := &Stage{
+		BufferStart: 5,
+		BufferEnd:   7,
+		rawChanges: map[int]LineChange{
+			5: {Type: ChangeModification, OldLineNum: 5, NewLineNum: 5},
+			6: {Type: ChangeDeletion, OldLineNum: 6, NewLineNum: -1},
+			7: {Type: ChangeModification, OldLineNum: 7, NewLineNum: 6},
+		},
+	}
+	// Changes have NewLineNum 5 and 6 (ignoring deletion).
+	// Unchanged old lines: old 5 maps to 4 (outside range check uses OldToNew
+	// but old 5 is OldToNew[4]=-1, old 6 is OldToNew[5]=5, old 7 is OldToNew[6]=6).
+	// Combined: newStart=5, newEnd=6
+	newStart, newEnd := getStageNewLineRangeFromChanges(stage, 1, mapping)
 	assert.Equal(t, 5, newStart, "newStart")
 	assert.Equal(t, 6, newEnd, "newEnd")
 }

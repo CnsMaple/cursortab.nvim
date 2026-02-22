@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -38,21 +39,26 @@ type fixtureParams struct {
 	ViewportBottom int `json:"viewportBottom"`
 }
 
-type fixtureResult struct {
-	Name               string
-	OldText            string
-	NewText            string
-	Params             fixtureParams
-	Expected           []map[string]any
-	BatchActual        []map[string]any
-	IncrementalActual  []map[string]any
-	BatchPass          bool
-	IncrementalPass    bool
+type maxLinesResult struct {
+	MaxLines           int
 	ApplyPass          bool
 	ApplyLines         []string
 	PartialAcceptPass  bool
 	PartialAcceptLines []string
-	Verified           bool
+}
+
+type fixtureResult struct {
+	Name              string
+	OldText           string
+	NewText           string
+	Params            fixtureParams
+	Expected          []map[string]any
+	BatchActual       []map[string]any
+	IncrementalActual []map[string]any
+	BatchPass         bool
+	IncrementalPass   bool
+	MaxLinesResults   []maxLinesResult
+	Verified          bool
 }
 
 // stageIsPureInsertion checks if a stage is a pure insertion (insert without
@@ -96,6 +102,10 @@ func (b *testBuffer) applyStage(stage *Stage) {
 		newLines = append(newLines, stage.Lines...)
 		if end < len(b.lines) {
 			newLines = append(newLines, b.lines[end:]...)
+		}
+		// Neovim buffers always have at least one line
+		if len(newLines) == 0 {
+			newLines = []string{""}
 		}
 		b.lines = newLines
 	}
@@ -193,8 +203,9 @@ func (b *testBuffer) partialAcceptStage(stage *Stage) {
 	}
 }
 
-// advanceOffsets applies the offset from the applied stage to remaining stages,
-// mirroring advanceStagedCompletion in engine/accept.go.
+// advanceOffsets applies the offset from the applied stage to remaining stages
+// that are at or after the applied stage's buffer position.
+// Stages before the applied stage's position are unaffected.
 func advanceOffsets(stages []*Stage, appliedIdx int) {
 	stage := stages[appliedIdx]
 
@@ -210,10 +221,12 @@ func advanceOffsets(stages []*Stage, appliedIdx int) {
 
 	if offset != 0 {
 		for i := appliedIdx + 1; i < len(stages); i++ {
-			stages[i].BufferStart += offset
-			stages[i].BufferEnd += offset
-			for _, g := range stages[i].Groups {
-				g.BufferLine += offset
+			if stages[i].BufferStart >= stage.BufferStart {
+				stages[i].BufferStart += offset
+				stages[i].BufferEnd += offset
+				for _, g := range stages[i].Groups {
+					g.BufferLine += offset
+				}
 			}
 		}
 	}
@@ -340,56 +353,13 @@ func TestE2E(t *testing.T) {
 				}
 			}
 
-			// --- Apply verification ---
-			applyPass := true
-			var applyLines []string
-			if batchResult != nil && len(batchResult.Stages) > 0 {
-				buf := &testBuffer{lines: append([]string{}, oldLines...)}
-				stageCopies := make([]*Stage, len(batchResult.Stages))
-				for i, s := range batchResult.Stages {
-					cp := *s
-					cp.Groups = make([]*Group, len(s.Groups))
-					for j, g := range s.Groups {
-						gCopy := *g
-						cp.Groups[j] = &gCopy
-					}
-					stageCopies[i] = &cp
-				}
-				for i := range stageCopies {
-					buf.applyStage(stageCopies[i])
-					advanceOffsets(stageCopies, i)
-				}
-				applyLines = buf.lines
-				if !slicesEqual(applyLines, newLines) {
-					applyPass = false
-					t.Errorf("apply result mismatch:\n  got:  %v\n  want: %v", applyLines, newLines)
-				}
-			}
+			// --- Apply verification with multiple MaxLines values ---
+			maxLinesValues := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 1000}
+			var mlResults []maxLinesResult
 
-			// --- Partial accept verification ---
-			partialAcceptPass := true
-			var partialAcceptLines []string
-			if batchResult != nil && len(batchResult.Stages) > 0 {
-				buf := &testBuffer{lines: append([]string{}, oldLines...)}
-				stageCopies := make([]*Stage, len(batchResult.Stages))
-				for i, s := range batchResult.Stages {
-					cp := *s
-					cp.Groups = make([]*Group, len(s.Groups))
-					for j, g := range s.Groups {
-						gCopy := *g
-						cp.Groups[j] = &gCopy
-					}
-					stageCopies[i] = &cp
-				}
-				for i := range stageCopies {
-					buf.partialAcceptStage(stageCopies[i])
-					advanceOffsets(stageCopies, i)
-				}
-				partialAcceptLines = buf.lines
-				if !slicesEqual(partialAcceptLines, newLines) {
-					partialAcceptPass = false
-					t.Errorf("partial accept result mismatch:\n  got:  %v\n  want: %v", partialAcceptLines, newLines)
-				}
+			for _, maxLines := range maxLinesValues {
+				mlResult := verifyApplyWithMaxLines(t, oldLines, newLines, oldText, newText, params, maxLines)
+				mlResults = append(mlResults, mlResult)
 			}
 
 			// --- Update or compare ---
@@ -436,20 +406,17 @@ func TestE2E(t *testing.T) {
 			}
 
 			fr := fixtureResult{
-				Name:               name,
-				OldText:            string(oldBytes),
-				NewText:            string(newBytes),
-				Params:             params,
-				Expected:           expected,
-				BatchActual:        batchLua,
-				IncrementalActual:  incLua,
-				BatchPass:          batchJSON == expectedJSON,
-				IncrementalPass:    incJSON == expectedJSON,
-				ApplyPass:          applyPass,
-				ApplyLines:         applyLines,
-				PartialAcceptPass:  partialAcceptPass,
-				PartialAcceptLines: partialAcceptLines,
-				Verified:           verified,
+				Name:              name,
+				OldText:           string(oldBytes),
+				NewText:           string(newBytes),
+				Params:            params,
+				Expected:          expected,
+				BatchActual:       batchLua,
+				IncrementalActual: incLua,
+				BatchPass:         batchJSON == expectedJSON,
+				IncrementalPass:   incJSON == expectedJSON,
+				MaxLinesResults:   mlResults,
+				Verified:          verified,
 			}
 			fixtures = append(fixtures, fr)
 
@@ -477,6 +444,88 @@ func TestE2E(t *testing.T) {
 	} else {
 		t.Logf("report: %s", reportPath)
 	}
+}
+
+// copyStages deep-copies a slice of stages for apply simulation.
+func copyStages(stages []*Stage) []*Stage {
+	copies := make([]*Stage, len(stages))
+	for i, s := range stages {
+		cp := *s
+		cp.Groups = make([]*Group, len(s.Groups))
+		for j, g := range s.Groups {
+			gCopy := *g
+			cp.Groups[j] = &gCopy
+		}
+		copies[i] = &cp
+	}
+	return copies
+}
+
+// verifyApplyWithMaxLines runs apply and partial-accept verification for a given MaxLines value.
+func verifyApplyWithMaxLines(t *testing.T, oldLines, newLines []string, oldText, newText string, params fixtureParams, maxLines int) maxLinesResult {
+	t.Helper()
+
+	diff := ComputeDiff(oldText, newText)
+	result := CreateStages(&StagingParams{
+		Diff:               diff,
+		CursorRow:          params.CursorRow,
+		CursorCol:          params.CursorCol,
+		ViewportTop:        params.ViewportTop,
+		ViewportBottom:     params.ViewportBottom,
+		BaseLineOffset:     1,
+		ProximityThreshold: 10,
+		MaxLines:           maxLines,
+		NewLines:           newLines,
+		OldLines:           oldLines,
+		FilePath:           "test.txt",
+	})
+
+	mlr := maxLinesResult{
+		MaxLines:          maxLines,
+		ApplyPass:         true,
+		PartialAcceptPass: true,
+	}
+
+	if result == nil || len(result.Stages) == 0 {
+		return mlr
+	}
+
+	label := "default"
+	if maxLines > 0 {
+		label = fmt.Sprintf("maxLines=%d", maxLines)
+	}
+
+	// Apply verification
+	{
+		buf := &testBuffer{lines: append([]string{}, oldLines...)}
+		stages := copyStages(result.Stages)
+		for i := range stages {
+			buf.applyStage(stages[i])
+			advanceOffsets(stages, i)
+		}
+		mlr.ApplyLines = buf.lines
+		if !slicesEqual(mlr.ApplyLines, newLines) {
+			mlr.ApplyPass = false
+			t.Errorf("apply result mismatch (%s, %d stages):\n  got:  %v\n  want: %v", label, len(result.Stages), mlr.ApplyLines, newLines)
+		}
+	}
+
+	// Partial accept verification
+	{
+		buf := &testBuffer{lines: append([]string{}, oldLines...)}
+		stages := copyStages(result.Stages)
+		for i := range stages {
+			buf.partialAcceptStage(stages[i])
+			advanceOffsets(stages, i)
+		}
+		mlr.PartialAcceptLines = buf.lines
+		if !slicesEqual(mlr.PartialAcceptLines, newLines) {
+			mlr.PartialAcceptPass = false
+			t.Errorf("partial accept result mismatch (%s, %d stages):\n  got:  %v\n  want: %v", label, len(result.Stages), mlr.PartialAcceptLines, newLines)
+		}
+	}
+
+	return mlr
 }
 
 func slicesEqual(a, b []string) bool {

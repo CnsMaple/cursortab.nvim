@@ -227,11 +227,14 @@ func (e *Engine) advanceStagedCompletion() {
 		return
 	}
 
-	// Apply cumulative offset to remaining stages
-	if e.stagedCompletion.CumulativeOffset != 0 {
+	// Apply cumulative offset to remaining stages that are at or after the
+	// applied stage's buffer position. Stages before the applied position
+	// are unaffected by the line count change.
+	if e.stagedCompletion.CumulativeOffset != 0 && currentStage != nil {
+		appliedStart := currentStage.BufferStart
 		for i := e.stagedCompletion.CurrentIdx; i < len(e.stagedCompletion.Stages); i++ {
 			stage := e.getStage(i)
-			if stage != nil {
+			if stage != nil && stage.BufferStart >= appliedStart {
 				stage.BufferStart += e.stagedCompletion.CumulativeOffset
 				stage.BufferEnd += e.stagedCompletion.CumulativeOffset
 

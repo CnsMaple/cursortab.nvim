@@ -355,7 +355,8 @@ func (b *IncrementalStageBuilder) finalizeCurrentStage() *Stage {
 		remappedChanges := make(map[int]LineChange)
 		relativeToBufferLine := make(map[int]int)
 
-		newStart, _ := getStageNewLineRange(bufferStart, bufferEnd, b.BaseLineOffset+minOld-1, false, diff.LineMapping)
+		tempStage := &Stage{rawChanges: diff.Changes, BufferStart: bufferStart, BufferEnd: bufferEnd}
+		newStart, _ := getStageNewLineRangeFromChanges(tempStage, b.BaseLineOffset+minOld-1, diff.LineMapping)
 
 		for lineNum, change := range diff.Changes {
 			newLineNum := lineNum
