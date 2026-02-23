@@ -532,7 +532,7 @@ Updated fixtures are marked as **unverified**. After reviewing the generated
 `expected.json` files and the HTML report, mark a specific fixture as verified:
 
 ```bash
-cd server && go test ./text/... -run TestE2E -verify-case=<name>
+cd server && go test ./text/... -run TestE2E -verify <name>
 ```
 
 Verification state is tracked in `server/text/e2e/verified.json` (a SHA256
