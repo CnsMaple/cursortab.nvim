@@ -2257,3 +2257,138 @@ func TestIncrementalStageBuilder_MaxVisibleLinesSplitNoSpuriousDeletions(t *test
 	}
 	assert.Equal(t, 8, totalModifications, "all 8 changed routes should appear as modifications")
 }
+
+// TestIncrementalStageBuilder_DuplicateLinesAcrossFunctions tests that when
+// filling in a function body with lines identical to another function,
+// MaxVisibleLines staging produces correct results that apply back to the
+// expected new content.
+func TestIncrementalStageBuilder_DuplicateLinesAcrossFunctions(t *testing.T) {
+	oldLines := []string{
+		"void ecg_lowpass(const double *x, double *y, size_t n, int N) {",
+		"    assert(n >= (size_t)(2 * N) && \"Not enough samples\");",
+		"",
+		"    for (size_t i = 0; i < n; ++i) {",
+		"        double y1 = (i >= 1) ? y[i - 1] : 0.0;",
+		"        double y2 = (i >= 2) ? y[i - 2] : 0.0;",
+		"        double xN = (i >= (size_t)N) ? x[i - N] : 0.0;",
+		"        double x2N = (i >= (size_t)2 * N) ? x[i - 2 * N] : 0.0;",
+		"        y[i] = 2 * y1 - y2 + x[i] - 2 * xN + x2N;",
+		"    }",
+		"}",
+		"",
+		"void ecg_highpass(const double *x, double *y, size_t n, int N) {",
+		"    ",
+		"}",
+	}
+
+	newLines := []string{
+		"void ecg_lowpass(const double *x, double *y, size_t n, int N) {",
+		"    assert(n >= (size_t)(2 * N) && \"Not enough samples\");",
+		"",
+		"    for (size_t i = 0; i < n; ++i) {",
+		"        double y1 = (i >= 1) ? y[i - 1] : 0.0;",
+		"        double y2 = (i >= 2) ? y[i - 2] : 0.0;",
+		"        double xN = (i >= (size_t)N) ? x[i - N] : 0.0;",
+		"        double x2N = (i >= (size_t)2 * N) ? x[i - 2 * N] : 0.0;",
+		"        y[i] = 2 * y1 - y2 + x[i] - 2 * xN + x2N;",
+		"    }",
+		"}",
+		"",
+		"void ecg_highpass(const double *x, double *y, size_t n, int N) {",
+		"    assert(n >= (size_t)(2 * N) && \"Not enough samples\");",
+		"",
+		"    for (size_t i = 0; i < n; ++i) {",
+		"        double y1 = (i >= 1) ? y[i - 1] : 0.0;",
+		"        double y2 = (i >= 2) ? y[i - 2] : 0.0;",
+		"        double xN = (i >= (size_t)N) ? x[i - N] : 0.0;",
+		"        double x2N = (i >= (size_t)2 * N) ? x[i - 2 * N] : 0.0;",
+		"        y[i] = x[i] - 2 * y1 + y2 - 2 * xN + x2N;",
+		"    }",
+		"}",
+	}
+
+	for _, maxVisibleLines := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 1000} {
+		t.Run(fmt.Sprintf("MaxVisibleLines=%d", maxVisibleLines), func(t *testing.T) {
+			builder := NewIncrementalStageBuilder(
+				oldLines,
+				1,  // baseLineOffset
+				10, // proximityThreshold
+				maxVisibleLines,
+				1,  // viewportTop
+				50, // viewportBottom
+				14, // cursorRow (on the "    " line inside ecg_highpass)
+				4,  // cursorCol
+				"test.c",
+			)
+
+			var streamStageCount int
+			for _, line := range newLines {
+				if stage := builder.AddLine(line); stage != nil {
+					streamStageCount++
+				}
+			}
+
+			// At most 1 stage should be finalized during streaming
+			if streamStageCount > 1 {
+				t.Errorf("expected at most 1 streamed stage, got %d", streamStageCount)
+			}
+
+			// Finalize (batch pipeline) produces all stages correctly
+			result := builder.Finalize()
+			if result == nil || len(result.Stages) == 0 {
+				t.Fatal("expected at least one stage from Finalize")
+			}
+
+			// Apply all finalized stages to old content and verify
+			buf := &testBuffer{lines: append([]string{}, oldLines...)}
+			stages := copyStages(result.Stages)
+			for i := range stages {
+				buf.applyStage(stages[i])
+				advanceOffsets(stages, i)
+			}
+
+			if !slicesEqual(buf.lines, newLines) {
+				t.Errorf("apply result mismatch (incremental, maxVisibleLines=%d, %d stages):\n  got:  %v\n  want: %v",
+					maxVisibleLines, len(result.Stages), buf.lines, newLines)
+			}
+		})
+	}
+
+	// Also verify the batch pipeline with MaxLines
+	oldText := JoinLines(oldLines)
+	newText := JoinLines(newLines)
+	for _, maxLines := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 1000} {
+		t.Run(fmt.Sprintf("Batch_MaxLines=%d", maxLines), func(t *testing.T) {
+			diff := ComputeDiff(oldText, newText)
+			result := CreateStages(&StagingParams{
+				Diff:               diff,
+				CursorRow:          14,
+				CursorCol:          4,
+				ViewportTop:        1,
+				ViewportBottom:     50,
+				BaseLineOffset:     1,
+				ProximityThreshold: 10,
+				MaxLines:           maxLines,
+				NewLines:           newLines,
+				OldLines:           oldLines,
+				FilePath:           "test.c",
+			})
+
+			if result == nil || len(result.Stages) == 0 {
+				t.Fatal("expected at least one stage")
+			}
+
+			buf := &testBuffer{lines: append([]string{}, oldLines...)}
+			stages := copyStages(result.Stages)
+			for i := range stages {
+				buf.applyStage(stages[i])
+				advanceOffsets(stages, i)
+			}
+
+			if !slicesEqual(buf.lines, newLines) {
+				t.Errorf("apply result mismatch (batch, maxLines=%d, %d stages):\n  got:  %v\n  want: %v",
+					maxLines, len(result.Stages), buf.lines, newLines)
+			}
+		})
+	}
+}

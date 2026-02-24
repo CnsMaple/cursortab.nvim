@@ -94,8 +94,11 @@ func (b *IncrementalDiffBuilder) findMatchingOldLine(newLine string) int {
 	return 0
 }
 
-// IncrementalStageBuilder builds stages incrementally as lines stream in.
-// It finalizes stages when gaps or viewport boundaries are detected.
+// IncrementalStageBuilder accumulates streamed lines and detects when the first
+// stage boundary occurs (a gap of unchanged lines after changes, or enough
+// change lines to hit MaxVisibleLines). Stage content is always produced by the
+// batch pipeline (ComputeDiff + CreateStages), so false-positive line matches
+// only affect gap detection timing, never stage correctness.
 type IncrementalStageBuilder struct {
 	OldLines           []string
 	BaseLineOffset     int // Where the diff range starts in the buffer (1-indexed)
@@ -108,10 +111,11 @@ type IncrementalStageBuilder struct {
 	FilePath           string
 
 	// State
-	diffBuilder            *IncrementalDiffBuilder
-	currentStage           *Stage
-	currentStageInViewport bool
-	lastChangeBufferLine   int // Track last BUFFER line with a change (not new line number)
+	diffBuilder          *IncrementalDiffBuilder
+	hasChanges           bool // Whether any change has been seen
+	changeCount          int  // Number of change lines seen so far
+	lastChangeBufferLine int  // Buffer line of the last change (for gap detection)
+	firstStageSent       bool // After first stage, only accumulate
 }
 
 // NewIncrementalStageBuilder creates a new incremental stage builder
@@ -125,249 +129,93 @@ func NewIncrementalStageBuilder(
 	filePath string,
 ) *IncrementalStageBuilder {
 	return &IncrementalStageBuilder{
-		OldLines:             oldLines,
-		BaseLineOffset:       baseLineOffset,
-		ProximityThreshold:   proximityThreshold,
-		MaxVisibleLines:      maxVisibleLines,
-		ViewportTop:          viewportTop,
-		ViewportBottom:       viewportBottom,
-		CursorRow:            cursorRow,
-		CursorCol:            cursorCol,
-		FilePath:             filePath,
-		diffBuilder:          NewIncrementalDiffBuilder(oldLines),
-		lastChangeBufferLine: 0,
+		OldLines:           oldLines,
+		BaseLineOffset:     baseLineOffset,
+		ProximityThreshold: proximityThreshold,
+		MaxVisibleLines:    maxVisibleLines,
+		ViewportTop:        viewportTop,
+		ViewportBottom:     viewportBottom,
+		CursorRow:          cursorRow,
+		CursorCol:          cursorCol,
+		FilePath:           filePath,
+		diffBuilder:        NewIncrementalDiffBuilder(oldLines),
 	}
 }
 
-// AddLine processes a new line and returns a newly finalized stage if any.
-// Returns nil if no stage was finalized on this line.
+// AddLine processes a new line and returns a stage if the first stage boundary
+// is detected. After the first stage, returns nil (just accumulates for Finalize).
 func (b *IncrementalStageBuilder) AddLine(line string) *Stage {
 	change := b.diffBuilder.AddLine(line)
 	lineNum := len(b.diffBuilder.NewLines) // 1-indexed
 
-	if change == nil {
-		// No change on this line - but check if we should finalize based on
-		// buffer line gap (where this line maps in the original file).
-		if b.currentStage != nil && b.lastChangeBufferLine > 0 {
-			// Compute where this unchanged line maps in the buffer
-			currentBufferLine := b.computeCurrentBufferLine(lineNum)
-			if currentBufferLine > 0 {
-				bufferGap := currentBufferLine - b.lastChangeBufferLine
-				if bufferGap > b.ProximityThreshold {
-					return b.finalizeCurrentStage()
-				}
-			}
+	if b.firstStageSent {
+		return nil
+	}
+
+	if change != nil {
+		b.hasChanges = true
+		b.changeCount++
+		bufferLine := b.diffBuilder.LineMapping.GetBufferLine(*change, b.BaseLineOffset)
+		b.lastChangeBufferLine = bufferLine
+
+		// MaxVisibleLines limit: produce first stage after enough changes
+		if b.MaxVisibleLines > 0 && b.changeCount >= b.MaxVisibleLines {
+			b.firstStageSent = true
+			return b.buildFirstStage()
 		}
 		return nil
 	}
 
-	// We have a change - compute its buffer line
-	bufferLine := b.diffBuilder.LineMapping.GetBufferLine(*change, b.BaseLineOffset)
-
-	// Determine if this change is in viewport
-	isInViewport := b.ViewportTop == 0 && b.ViewportBottom == 0 ||
-		(bufferLine >= b.ViewportTop && bufferLine <= b.ViewportBottom)
-
-	// Check if this starts a new stage (buffer line gap or viewport boundary)
-	if b.shouldStartNewStage(bufferLine, isInViewport) {
-		finalized := b.finalizeCurrentStage()
-		b.startNewStage(lineNum, bufferLine, *change, isInViewport)
-		return finalized
-	}
-
-	// Extend current stage or start first one
-	if b.currentStage == nil {
-		b.startNewStage(lineNum, bufferLine, *change, isInViewport)
-	} else {
-		b.extendCurrentStage(lineNum, bufferLine, *change)
+	// Unchanged line — check for gap after changes
+	if b.hasChanges && b.lastChangeBufferLine > 0 {
+		currentBufferLine := b.computeCurrentBufferLine(lineNum)
+		if currentBufferLine > 0 {
+			gap := currentBufferLine - b.lastChangeBufferLine
+			if gap > b.ProximityThreshold {
+				b.firstStageSent = true
+				return b.buildFirstStage()
+			}
+		}
 	}
 
 	return nil
 }
 
-// shouldStartNewStage determines if we need to start a new stage based on
-// BUFFER LINE gaps (not new line numbers), MaxVisibleLines limit, and viewport boundaries.
-func (b *IncrementalStageBuilder) shouldStartNewStage(bufferLine int, isInViewport bool) bool {
-	if b.currentStage == nil {
-		return false
+// buildFirstStage runs the batch pipeline on accumulated content to produce
+// a correct first stage. Old lines are scoped to the streaming progress to
+// avoid treating not-yet-streamed content as deletions.
+func (b *IncrementalStageBuilder) buildFirstStage() *Stage {
+	// Scope old lines to what streaming has covered. oldLineIdx tracks the
+	// last matched old line — everything beyond hasn't been seen yet and
+	// would appear as spurious deletions.
+	endOld := b.diffBuilder.oldLineIdx
+	if endOld > len(b.OldLines) {
+		endOld = len(b.OldLines)
 	}
+	partialOldLines := b.OldLines[:endOld]
 
-	// Check MaxVisibleLines limit
-	if b.MaxVisibleLines > 0 {
-		stageLineCount := b.currentStage.endLine - b.currentStage.startLine + 1
-		if stageLineCount >= b.MaxVisibleLines {
-			return true
-		}
-	}
-
-	// Check buffer line gap
-	if b.lastChangeBufferLine > 0 {
-		bufferGap := bufferLine - b.lastChangeBufferLine
-		if bufferGap < 0 {
-			bufferGap = -bufferGap
-		}
-		if bufferGap > b.ProximityThreshold {
-			return true
-		}
-	}
-
-	// Check viewport boundary crossing
-	if b.currentStageInViewport != isInViewport {
-		return true
-	}
-
-	return false
-}
-
-// startNewStage initializes a new stage with the given change
-func (b *IncrementalStageBuilder) startNewStage(lineNum int, bufferLine int, change LineChange, isInViewport bool) {
-	b.currentStage = &Stage{
-		startLine:  lineNum,
-		endLine:    lineNum,
-		rawChanges: []LineChange{change},
-	}
-	b.currentStageInViewport = isInViewport
-	b.lastChangeBufferLine = bufferLine
-}
-
-// extendCurrentStage adds a change to the current stage
-func (b *IncrementalStageBuilder) extendCurrentStage(lineNum int, bufferLine int, change LineChange) {
-	b.currentStage.rawChanges = append(b.currentStage.rawChanges, change)
-	if lineNum > b.currentStage.endLine {
-		b.currentStage.endLine = lineNum
-	}
-	b.lastChangeBufferLine = bufferLine
-}
-
-// findOldLineRange finds the old line range for a stage by using exact-match
-// anchors from NewToOld. Walks backward from startNewLine and forward from
-// endNewLine to find the nearest anchors, then returns the range between them.
-// Returns (minOld, maxOld) as 1-indexed old line numbers.
-func (b *IncrementalStageBuilder) findOldLineRange(startNewLine, endNewLine int) (int, int) {
-	mapping := b.diffBuilder.LineMapping.NewToOld
-
-	// Find anchor before: walk backward from startNewLine-1
-	anchorBefore := -1
-	for i := startNewLine - 2; i >= 0; i-- {
-		if i < len(mapping) && mapping[i] > 0 {
-			anchorBefore = mapping[i]
-			break
-		}
-	}
-
-	// Find anchor after: walk forward from endNewLine+1
-	anchorAfter := -1
-	for i := endNewLine; i < len(mapping); i++ {
-		if mapping[i] > 0 {
-			anchorAfter = mapping[i]
-			break
-		}
-	}
-
-	// Compute old range between anchors (exclusive of anchors themselves)
-	minOld := -1
-	maxOld := -1
-
-	if anchorBefore > 0 {
-		minOld = anchorBefore + 1
-	} else {
-		minOld = 1
-	}
-
-	if anchorAfter > 0 {
-		maxOld = anchorAfter - 1
-	} else {
-		// No forward anchor (mid-stream finalization). Use the highest old line
-		// matched within the stage's new line range instead of the entire file.
-		for i := startNewLine - 1; i < endNewLine && i < len(mapping); i++ {
-			if mapping[i] > 0 && mapping[i] > maxOld {
-				maxOld = mapping[i]
-			}
-		}
-		if maxOld == -1 {
-			// No matched lines within stage range and no forward anchor.
-			// Estimate the old range size from the stage's new line count to
-			// avoid capturing the entire remaining file as deletions.
-			maxOld = minOld + (endNewLine - startNewLine)
-		}
-	}
-
-	// Clamp
-	if minOld < 1 {
-		minOld = 1
-	}
-	if maxOld > len(b.OldLines) {
-		maxOld = len(b.OldLines)
-	}
-
-	// If range is empty (anchors are adjacent), this is a pure addition
-	if minOld > maxOld {
-		return -1, -1
-	}
-
-	return minOld, maxOld
-}
-
-// finalizeCurrentStage finalizes the current stage by running ComputeDiff on
-// the stage's sub-range and delegating to CreateStages for all finalization.
-func (b *IncrementalStageBuilder) finalizeCurrentStage() *Stage {
-	if b.currentStage == nil || len(b.currentStage.rawChanges) == 0 {
-		return nil
-	}
-
-	stage := b.currentStage
-	b.currentStage = nil
-
-	newStartLine := stage.startLine
-	newEndLine := stage.endLine
-
-	// Extract new lines for this stage
-	var stageNewLines []string
-	for j := newStartLine; j <= newEndLine && j-1 < len(b.diffBuilder.NewLines); j++ {
-		stageNewLines = append(stageNewLines, b.diffBuilder.NewLines[j-1])
-	}
-
-	// Find old line range using exact-match anchors from streaming
-	minOld, maxOld := b.findOldLineRange(newStartLine, newEndLine)
-
-	var stageOldLines []string
-	var baseOffset int
-
-	if minOld > 0 && maxOld > 0 {
-		stageOldLines = b.OldLines[minOld-1 : maxOld]
-		baseOffset = minOld + b.BaseLineOffset - 1
-	} else {
-		// Pure addition — compute buffer insertion point from streaming anchors
-		baseOffset = b.BaseLineOffset + len(b.OldLines)
-		for _, change := range stage.rawChanges {
-			bufLine := b.diffBuilder.LineMapping.GetBufferLine(change, b.BaseLineOffset)
-			if bufLine > 0 && bufLine < baseOffset {
-				baseOffset = bufLine
-			}
-		}
-	}
-
-	diff := ComputeDiff(JoinLines(stageOldLines), JoinLines(stageNewLines))
+	oldText := JoinLines(partialOldLines)
+	newText := JoinLines(b.diffBuilder.NewLines)
+	diff := ComputeDiff(oldText, newText)
 
 	result := CreateStages(&StagingParams{
 		Diff:               diff,
 		CursorRow:          b.CursorRow,
 		CursorCol:          b.CursorCol,
-		ViewportTop:        0, // disable viewport partitioning within a sub-stage
-		ViewportBottom:     0,
-		BaseLineOffset:     baseOffset,
-		ProximityThreshold: len(stageNewLines) + len(stageOldLines) + 1, // keep all in one stage
-		MaxLines:           0,
-		NewLines:           stageNewLines,
-		OldLines:           stageOldLines,
+		ViewportTop:        b.ViewportTop,
+		ViewportBottom:     b.ViewportBottom,
+		BaseLineOffset:     b.BaseLineOffset,
+		ProximityThreshold: b.ProximityThreshold,
+		MaxLines:           b.MaxVisibleLines,
+		NewLines:           b.diffBuilder.NewLines,
+		OldLines:           partialOldLines,
 		FilePath:           b.FilePath,
 	})
 
-	if result == nil || len(result.Stages) == 0 {
-		return nil
+	if result != nil && len(result.Stages) > 0 {
+		return result.Stages[0]
 	}
-
-	return result.Stages[0]
+	return nil
 }
 
 // computeCurrentBufferLine computes the buffer line for the current position

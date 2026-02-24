@@ -272,12 +272,11 @@ func (e *Engine) handleStreamCompleteSimple() {
 		SourcePath: e.buffer.Path(),
 	}
 
-	// If we already rendered the first stage during streaming, don't re-render it
+	// If we rendered a stage during streaming, re-render from the batch pipeline
+	// for correctness. The streamed stage was a best-effort preview; the batch
+	// stage is the authoritative version.
 	if firstStageRendered {
-		// Stage 0 is already showing - just update cursor target from finalized data
-		firstStage := stagingResult.Stages[0]
-		e.cursorTarget = firstStage.CursorTarget
-		e.state = stateHasCompletion
+		e.showCurrentStage()
 		return
 	}
 
