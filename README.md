@@ -41,7 +41,7 @@ A Neovim plugin that provides local edit completions and cursor predictions.
 
 ## Requirements
 
-- Go 1.24.2+ (for building the server component)
+- Go 1.25.0+ (for building the server component)
 - Neovim 0.8+ (for the plugin)
 
 ## Installation

@@ -1,6 +1,6 @@
 module cursortab
 
-go 1.24.2
+go 1.25.0
 
 require (
 	github.com/neovim/go-client v1.2.1
@@ -9,4 +9,4 @@ require (
 
 require github.com/andybalholm/brotli v1.2.0
 
-require golang.org/x/tools v0.42.0 // indirect
+require golang.org/x/tools v0.42.0
