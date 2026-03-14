@@ -239,18 +239,14 @@ func TestIncrementalStageBuilder_ViewportBoundary(t *testing.T) {
 	builder.AddLine("line nine")
 	builder.AddLine("line ten")
 
-	// Finalize and check we got multiple stages
+	// Finalize and check stages
 	result := builder.Finalize()
 	assert.NotNil(t, result, "expected staging result")
 
-	// Should have 2 stages: one for viewport changes (1, 5), one for outside (6)
-	if len(result.Stages) < 2 {
-		for i, stage := range result.Stages {
-			t.Logf("Stage %d: BufferStart=%d, BufferEnd=%d, changes=%d",
-				i, stage.BufferStart, stage.BufferEnd, len(stage.Changes))
-		}
-	}
-	assert.GreaterOrEqual(t, len(result.Stages), 2, "expected at least 2 stages due to viewport boundary")
+	// All three changes (lines 1, 5, 6) are within proximityThreshold=10,
+	// so they should be grouped into a single stage regardless of viewport.
+	// Viewport boundaries should not split logically connected changes.
+	assert.Equal(t, 1, len(result.Stages), "all nearby changes should be in one stage")
 }
 
 func TestIncrementalDiffBuilder_EmptyOldLines(t *testing.T) {

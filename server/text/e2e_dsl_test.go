@@ -49,9 +49,19 @@ func formatExpected(stages []map[string]any) string {
 		cursorCol := toInt(stage["cursor_col"])
 		fmt.Fprintf(&b, "stage @%d cursor=%d:%d\n", startLine, cursorLine, cursorCol)
 
-		groups, _ := stage["groups"].([]any)
-		for _, gAny := range groups {
-			g, _ := gAny.(map[string]any)
+		// Handle both []any (from JSON parse) and []map[string]any (from ToLuaFormat)
+		var groups []map[string]any
+		switch v := stage["groups"].(type) {
+		case []any:
+			for _, gAny := range v {
+				if g, ok := gAny.(map[string]any); ok {
+					groups = append(groups, g)
+				}
+			}
+		case []map[string]any:
+			groups = v
+		}
+		for _, g := range groups {
 			if g == nil {
 				continue
 			}

@@ -787,7 +787,7 @@ func TestGetStageBufferRange_WithInsertions(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// Both insertions anchor to line 1, so range should be 1-1
 	assert.True(t, stage.BufferStart <= stage.BufferEnd, fmt.Sprintf("invalid range: start=%d > end=%d", stage.BufferStart, stage.BufferEnd))
@@ -952,7 +952,7 @@ func TestGetStageBufferRange_AllInsertions(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// Pure additions with valid anchors (from mapping) use insertion point (anchor + 1).
 	// The mapping shows these insertions are anchored to old line 1, so insertion point is 2.
@@ -1059,7 +1059,7 @@ func TestGetStageBufferRange_AdditionsAtEndOfFile(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	assert.Equal(t, 8, stage.BufferStart, "buffer start line")
 	assert.Equal(t, 8, stage.BufferEnd, "buffer end covers modification + addition anchor")
@@ -1090,7 +1090,7 @@ func TestGetStageBufferRange_AdditionsWithinBuffer(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// Pure additions with anchor at line 4: insertion point is anchor + 1 = 5
 	assert.Equal(t, 5, stage.BufferStart, "buffer start line is insertion point (anchor + 1)")
@@ -1194,7 +1194,7 @@ func TestGetStageBufferRange_AdditionsAnchoredBeforeModifications(t *testing.T) 
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// StartLine should be 43 (first modification), NOT 42 (anchor of additions)
 	assert.Equal(t, 43, stage.BufferStart,
@@ -1225,7 +1225,7 @@ func TestGetStageBufferRange_OnlyAdditionsWithAnchor(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// Pure additions with anchor at line 10: insertion point is anchor + 1 = 11
 	assert.Equal(t, 11, stage.BufferStart, "buffer start should be insertion point (anchor + 1)")
@@ -1254,7 +1254,7 @@ func TestGetStageBufferRange_OnlyAdditionsBeyondBuffer(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// Pure additions with anchor at line 10: insertion point is anchor + 1 = 11
 	assert.Equal(t, 11, stage.BufferStart, "buffer start should be insertion point (anchor + 1)")
@@ -1339,7 +1339,7 @@ func TestGetStageBufferRange_AllAdditionsNoValidAnchor(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	// Anchorless additions with no mapping: falls back to stage start/end lines
 	assert.Equal(t, 5, stage.BufferStart, "should fallback to stage.startLine")
@@ -1363,7 +1363,7 @@ func TestGetStageBufferRange_BaseLineOffsetZero(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	computeStageRanges(stage, 0, diff, nil)
+	computeStageRanges(stage, 0, diff)
 
 	// With baseLineOffset=0: bufferLine = 5 + 0 - 1 = 4
 	assert.Equal(t, 4, stage.BufferStart, "buffer start with offset 0")
@@ -1596,7 +1596,7 @@ func TestGetStageNewLineRangeFromChanges_DerivedFromChanges(t *testing.T) {
 	// but old 5 is OldToNew[4]=-1, old 6 is OldToNew[5]=5, old 7 is OldToNew[6]=6).
 	// Combined: newStart=5, newEnd=6
 	diff := &DiffResult{LineMapping: mapping, Changes: stage.rawChanges}
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 	assert.Equal(t, 5, stage.newLineStart, "newStart")
 	assert.Equal(t, 6, stage.newLineEnd, "newEnd")
 }
@@ -1617,7 +1617,7 @@ func TestFinalizeStages_SingleDeletion(t *testing.T) {
 		endLine:    5,
 		rawChanges: diff.Changes,
 	}
-	computeStageRanges(stage, 1, diff, nil)
+	computeStageRanges(stage, 1, diff)
 
 	newLines := []string{"1", "2", "3", "4", "6", "7", "8", "9", "10"} // Line 5 deleted
 
@@ -2336,18 +2336,18 @@ func TestGetStageBufferRange_PureAdditionsBufferLineMapping(t *testing.T) {
 		rawChanges: diff.Changes,
 	}
 
-	lineNumToBufferLine := make(map[int]int)
 	baseLineOffset := 4
 
-	computeStageRanges(stage, baseLineOffset, diff, lineNumToBufferLine)
+	computeStageRanges(stage, baseLineOffset, diff)
 
 	// Stage buffer range should be at insertion point
 	assert.True(t, stage.BufferStart == stage.BufferEnd, "pure additions have start == end")
 
-	// bufferLines map should contain insertion points matching the stage range
-	for _, bufLine := range lineNumToBufferLine {
+	// Buffer lines for each change should match the stage range
+	for _, change := range diff.Changes {
+		bufLine := diff.LineMapping.GetBufferLine(change, baseLineOffset)
 		assert.Equal(t, stage.BufferStart, bufLine,
-			"bufferLines should contain insertion points matching stage range")
+			"buffer lines should match stage range for pure additions")
 	}
 }
 
@@ -2904,4 +2904,231 @@ func TestCreateStages_TrailingWhitespaceModification(t *testing.T) {
 	}
 	assert.NotNil(t, addGroup, "should have an addition group")
 	assert.Equal(t, 3, addGroup.BufferLine, "addition BufferLine")
+}
+
+// TestIfElseSimplificationClosingBraceInSameStage verifies that when an if/else
+// block is simplified to a single line, all 5 lines (if, body1, else, body2, })
+// end up in the same stage. Reproduces a bug from cursortab.3.log where the
+// closing `}` was split into a separate stage.
+func TestIfElseSimplificationClosingBraceInSameStage(t *testing.T) {
+	oldLines := []string{
+		"  });",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function addTag(id: string, tag: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags.length === 0) {",
+		"    article.tags.push(tag);",
+		"  } else {",
+		"    article.tags.push(tag);",
+		"  }",
+		"",
+		"  inc(\"tag_added\");",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function hasTags(id: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags === null) {",
+	}
+
+	newLines := []string{
+		"  });",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function addTag(id: string, tag: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  article.tags.push(tag);",
+		"",
+		"  inc(\"tag_added\");",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function hasTags(id: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags.length === 0) {",
+	}
+
+	oldText := JoinLines(oldLines)
+	newText := JoinLines(newLines)
+	diff := ComputeDiff(oldText, newText)
+
+	// BaseLineOffset=64 to match the real scenario (editable starts at file line 64)
+	result := CreateStages(&StagingParams{
+		Diff:               diff,
+		CursorRow:          78, // cursor at the push line
+		CursorCol:          0,
+		ViewportTop:        0,
+		ViewportBottom:     0,
+		BaseLineOffset:     64,
+		ProximityThreshold: 2,
+		MaxLines:           12,
+		FilePath:           "tmp/test.ts",
+		NewLines:           newLines,
+		OldLines:           oldLines,
+	})
+
+	assert.NotNil(t, result, "expected staging result")
+
+	// Log all stages and their groups
+	for i, stage := range result.Stages {
+		t.Logf("Stage %d: BufferStart=%d, BufferEnd=%d, Lines=%d",
+			i, stage.BufferStart, stage.BufferEnd, len(stage.Lines))
+		for j, g := range stage.Groups {
+			t.Logf("  Group %d: type=%s, BufferLine=%d, Lines=%v, OldLines=%v",
+				j, g.Type, g.BufferLine, g.Lines, g.OldLines)
+		}
+	}
+
+	// The if/else removal (buffer lines 75-79) should be in ONE stage, not split
+	firstStage := result.Stages[0]
+
+	// The closing brace `}` at buffer line 79 should be in the first stage
+	hasClosingBrace := false
+	for _, g := range firstStage.Groups {
+		for _, line := range g.Lines {
+			if line == "  }" {
+				hasClosingBrace = true
+			}
+		}
+	}
+	assert.True(t, hasClosingBrace,
+		"closing brace should be in the first stage, not split into a separate stage")
+
+	// BufferEnd should cover line 79 (the closing brace)
+	assert.True(t, firstStage.BufferEnd >= 79,
+		fmt.Sprintf("first stage BufferEnd should be >= 79 (got %d)", firstStage.BufferEnd))
+}
+
+// TestIfElseSimplificationViewportSplit verifies that viewport boundaries don't
+// split logically connected changes. When the viewport bottom is at line 78,
+// the closing `}` at buffer line 79 falls outside the viewport and ends up in
+// a separate outView stage.
+func TestIfElseSimplificationViewportSplit(t *testing.T) {
+	oldLines := []string{
+		"  });",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function addTag(id: string, tag: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags.length === 0) {",
+		"    article.tags.push(tag);",
+		"  } else {",
+		"    article.tags.push(tag);",
+		"  }",
+		"",
+		"  inc(\"tag_added\");",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function hasTags(id: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags === null) {",
+	}
+
+	newLines := []string{
+		"  });",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function addTag(id: string, tag: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  article.tags.push(tag);",
+		"",
+		"  inc(\"tag_added\");",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function hasTags(id: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags.length === 0) {",
+	}
+
+	oldText := JoinLines(oldLines)
+	newText := JoinLines(newLines)
+	diff := ComputeDiff(oldText, newText)
+
+	// Viewport bottom at 78 — the closing `}` at buffer 79 falls just outside
+	result := CreateStages(&StagingParams{
+		Diff:               diff,
+		CursorRow:          78,
+		CursorCol:          0,
+		ViewportTop:        50,
+		ViewportBottom:     78,
+		BaseLineOffset:     64,
+		ProximityThreshold: 2,
+		MaxLines:           12,
+		FilePath:           "tmp/test.ts",
+		NewLines:           newLines,
+		OldLines:           oldLines,
+	})
+
+	assert.NotNil(t, result, "expected staging result")
+
+	for i, stage := range result.Stages {
+		t.Logf("Stage %d: BufferStart=%d, BufferEnd=%d, Lines=%d",
+			i, stage.BufferStart, stage.BufferEnd, len(stage.Lines))
+		for j, g := range stage.Groups {
+			t.Logf("  Group %d: type=%s, BufferLine=%d, Lines=%v",
+				j, g.Type, g.BufferLine, g.Lines)
+		}
+	}
+
+	// The closing brace should be in the first stage, not split out
+	firstStage := result.Stages[0]
+	hasClosingBrace := false
+	for _, g := range firstStage.Groups {
+		for _, line := range g.Lines {
+			if line == "  }" {
+				hasClosingBrace = true
+			}
+		}
+	}
+	assert.True(t, hasClosingBrace,
+		"closing brace should be in the first stage, not split by viewport boundary")
+	assert.True(t, firstStage.BufferEnd >= 79,
+		fmt.Sprintf("first stage BufferEnd should be >= 79 (got %d)", firstStage.BufferEnd))
 }

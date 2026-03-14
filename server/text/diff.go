@@ -2,6 +2,7 @@ package text
 
 import (
 	"cursortab/logger"
+	"sort"
 	"strings"
 
 	"github.com/sergi/go-diff/diffmatchpatch"
@@ -455,20 +456,42 @@ func handleModificationsWithMapping(deletedLines, insertedLines []string,
 		return
 	}
 
-	// Unequal number of lines — single-pass greedy matching using combined scoring
+	// Unequal number of lines — best-score matching using combined scoring
 	// (prefix match + Levenshtein similarity), then emit modifications/deletions/additions.
+	// We collect all candidate pairs and assign from highest score to lowest so
+	// the globally best match wins, rather than whichever deleted line iterates first.
 	usedInserts := make(map[int]bool)
 	matches := make(map[int]int) // deleted index → inserted index
 
+	type candidate struct {
+		delIdx int
+		insIdx int
+		score  float64
+	}
+	var candidates []candidate
 	for i, deletedLine := range deletedLines {
 		if deletedLine == "" || strings.TrimSpace(deletedLine) == "" {
 			continue
 		}
-		bestIdx, bestScore := findBestMatch(deletedLine, insertedLines, usedInserts)
-		if bestIdx != -1 && bestScore >= SimilarityThreshold {
-			matches[i] = bestIdx
-			usedInserts[bestIdx] = true
+		for j, insertedLine := range insertedLines {
+			score := matchScore(deletedLine, insertedLine)
+			if score >= SimilarityThreshold {
+				candidates = append(candidates, candidate{i, j, score})
+			}
 		}
+	}
+	// Sort descending by score so best matches are assigned first
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].score > candidates[j].score
+	})
+	usedDeletes := make(map[int]bool)
+	for _, c := range candidates {
+		if usedDeletes[c.delIdx] || usedInserts[c.insIdx] {
+			continue
+		}
+		matches[c.delIdx] = c.insIdx
+		usedInserts[c.insIdx] = true
+		usedDeletes[c.delIdx] = true
 	}
 
 	// Emit matched pairs as modifications

@@ -290,6 +290,26 @@ func (e *Engine) processCompletion(completion *types.Completion) bool {
 		originalLines = append(originalLines, bufferLines[i-1])
 	}
 
+	// Trim trailing completion lines that duplicate post-editable buffer content.
+	// The model sometimes generates beyond the editable range; trim the suffix
+	// of the completion that matches the buffer past endLine.
+	if len(completion.Lines) > len(originalLines) {
+		excess := len(completion.Lines) - len(originalLines)
+		trimCount := 0
+		for i := excess - 1; i >= 0; i-- {
+			compIdx := len(originalLines) + i
+			bufIdx := endLine + i // 0-indexed: bufferLines[endLine+i] is post-editable
+			if bufIdx < len(bufferLines) && completion.Lines[compIdx] == bufferLines[bufIdx] {
+				trimCount++
+			} else {
+				break
+			}
+		}
+		if trimCount > 0 {
+			completion.Lines = completion.Lines[:len(completion.Lines)-trimCount]
+		}
+	}
+
 	viewportTop, viewportBottom := e.buffer.ViewportBounds()
 	originalText := text.JoinLines(originalLines)
 	newText := text.JoinLines(completion.Lines)

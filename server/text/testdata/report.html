@@ -68,10 +68,10 @@ pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; }
 </style>
 </head>
 <body>
-<h1>E2E Pipeline Report <span class="stats"><span class="meta">69 fixtures</span><span class="pass">69 pass</span></span></h1>
+<h1>E2E Pipeline Report <span class="stats"><span class="meta">72 fixtures</span><span class="pass">72 pass</span></span></h1>
 <div class="filters">
-<button class="filter-btn active" data-filter="all">All (69)</button>
-<button class="filter-btn" data-filter="passed">Passed (69)</button>
+<button class="filter-btn active" data-filter="all">All (72)</button>
+<button class="filter-btn" data-filter="passed">Passed (72)</button>
 <button class="filter-btn" data-filter="failed">Failed (0)</button>
 <button class="filter-btn" data-filter="unverified">Unverified (0)</button>
 </div>
@@ -2530,6 +2530,107 @@ pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; }
 </details></div>
 </details>
 <details class="fixture" data-status="passed" open>
+<summary class="hdr"><h2>greedy-matching-steal</h2><button class="copy-btn" data-name="greedy-matching-steal" onclick="navigator.clipboard.writeText(this.dataset.name)">copy</button><span class="meta">cursor=(9,9) vp=[1,50]</span><span class="hdr-statuses"><span class="pass">verified</span> <span class="pass">batch:pass</span> <span class="pass">inc:pass</span> <span class="pass">apply(default):pass</span> <span class="pass">partial(default):pass</span> <span class="pass">apply(ml1):pass</span> <span class="pass">partial(ml1):pass</span> <span class="pass">apply(ml2):pass</span> <span class="pass">partial(ml2):pass</span> <span class="pass">apply(ml3):pass</span> <span class="pass">partial(ml3):pass</span> <span class="pass">apply(ml4):pass</span> <span class="pass">partial(ml4):pass</span> <span class="pass">apply(ml5):pass</span> <span class="pass">partial(ml5):pass</span> <span class="pass">apply(ml6):pass</span> <span class="pass">partial(ml6):pass</span> <span class="pass">apply(ml7):pass</span> <span class="pass">partial(ml7):pass</span> <span class="pass">apply(ml8):pass</span> <span class="pass">partial(ml8):pass</span> <span class="pass">apply(ml1000):pass</span> <span class="pass">partial(ml1000):pass</span></span></summary>
+<div class="pipelines">
+<div class="pipeline-col">
+<div class="pipeline-label">Batch</div>
+<div class="pane">
+<h3>Old</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return 0;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span>  if (article.tags === null) {</span><span class="line"><span class="ln">6</span>    return 0;</span><span class="line"><span class="ln">7</span>  }</span><span class="line"><span class="ln">8</span></span><span class="line"><span class="ln">9</span>  return <span class="cursor">a</span>rticle.tags.split(&#34;,&#34;).length;</span><span class="line"><span class="ln">10</span>}</span></pre></div>
+<div class="pane">
+<h3>Preview</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return 0;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line del"><span class="ln">5</span>  if (article.tags === null) {</span><span class="line del"><span class="ln">6</span>    return 0;</span><span class="line del"><span class="ln">7</span>  }</span><span class="line del"><span class="ln">8</span></span><span class="line"><span class="ln">9</span>  return <span class="cursor">a</span>rticle.tags.<span class="del-hl">split(&#34;,&#34;).</span>length;</span><span class="line"><span class="ln">10</span>}</span></pre></div>
+<div class="pane">
+<h3>New</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return 0;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span>  return article.tags.<span class="cursor">l</span>ength;</span><span class="line"><span class="ln">6</span>}</span></pre></div>
+</div>
+<div class="pipeline-col">
+<div class="pipeline-label">Incremental</div>
+<div class="pane">
+<h3>Old</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return 0;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span>  if (article.tags === null) {</span><span class="line"><span class="ln">6</span>    return 0;</span><span class="line"><span class="ln">7</span>  }</span><span class="line"><span class="ln">8</span></span><span class="line"><span class="ln">9</span>  return <span class="cursor">a</span>rticle.tags.split(&#34;,&#34;).length;</span><span class="line"><span class="ln">10</span>}</span></pre></div>
+<div class="pane">
+<h3>Preview</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return 0;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line del"><span class="ln">5</span>  if (article.tags === null) {</span><span class="line del"><span class="ln">6</span>    return 0;</span><span class="line del"><span class="ln">7</span>  }</span><span class="line del"><span class="ln">8</span></span><span class="line"><span class="ln">9</span>  return <span class="cursor">a</span>rticle.tags.<span class="del-hl">split(&#34;,&#34;).</span>length;</span><span class="line"><span class="ln">10</span>}</span></pre></div>
+<div class="pane">
+<h3>New</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return 0;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span>  return article.tags.<span class="cursor">l</span>ength;</span><span class="line"><span class="ln">6</span>}</span></pre></div>
+</div>
+</div>
+<div class="json-section"><details class="json-details"><summary>JSON</summary>
+<div class="cols-2">
+<div class="json-col"><code class="shiki-json">[
+  {
+    &#34;cursor_col&#34;: 22,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 9,
+        &#34;col_end&#34;: 33,
+        &#34;col_start&#34;: 22,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  return article.tags.length;&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;  return article.tags.split(\&#34;,\&#34;).length;&#34;
+        ],
+        &#34;render_hint&#34;: &#34;delete_chars&#34;,
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 5,
+        &#34;end_line&#34;: 5,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags === null) {&#34;,
+          &#34;    return 0;&#34;,
+          &#34;  }&#34;,
+          &#34;&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 2,
+        &#34;type&#34;: &#34;deletion&#34;
+      }
+    ],
+    &#34;startLine&#34;: 5
+  }
+]</code></div>
+<div class="json-col"><code class="shiki-json">[
+  {
+    &#34;cursor_col&#34;: 22,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 9,
+        &#34;col_end&#34;: 33,
+        &#34;col_start&#34;: 22,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  return article.tags.length;&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;  return article.tags.split(\&#34;,\&#34;).length;&#34;
+        ],
+        &#34;render_hint&#34;: &#34;delete_chars&#34;,
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 5,
+        &#34;end_line&#34;: 5,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags === null) {&#34;,
+          &#34;    return 0;&#34;,
+          &#34;  }&#34;,
+          &#34;&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 2,
+        &#34;type&#34;: &#34;deletion&#34;
+      }
+    ],
+    &#34;startLine&#34;: 5
+  }
+]</code></div>
+</div>
+</details></div>
+</details>
+<details class="fixture" data-status="passed" open>
 <summary class="hdr"><h2>identical-line-not-marked-as-change</h2><button class="copy-btn" data-name="identical-line-not-marked-as-change" onclick="navigator.clipboard.writeText(this.dataset.name)">copy</button><span class="meta">cursor=(8,0) vp=[1,50]</span><span class="hdr-statuses"><span class="pass">verified</span> <span class="pass">batch:pass</span> <span class="pass">inc:pass</span> <span class="pass">apply(default):pass</span> <span class="pass">partial(default):pass</span> <span class="pass">apply(ml1):pass</span> <span class="pass">partial(ml1):pass</span> <span class="pass">apply(ml2):pass</span> <span class="pass">partial(ml2):pass</span> <span class="pass">apply(ml3):pass</span> <span class="pass">partial(ml3):pass</span> <span class="pass">apply(ml4):pass</span> <span class="pass">partial(ml4):pass</span> <span class="pass">apply(ml5):pass</span> <span class="pass">partial(ml5):pass</span> <span class="pass">apply(ml6):pass</span> <span class="pass">partial(ml6):pass</span> <span class="pass">apply(ml7):pass</span> <span class="pass">partial(ml7):pass</span> <span class="pass">apply(ml8):pass</span> <span class="pass">partial(ml8):pass</span> <span class="pass">apply(ml1000):pass</span> <span class="pass">partial(ml1000):pass</span></span></summary>
 <div class="pipelines">
 <div class="pipeline-col">
@@ -3272,6 +3373,119 @@ pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; }
       }
     ],
     &#34;startLine&#34;: 2
+  }
+]</code></div>
+</div>
+</details></div>
+</details>
+<details class="fixture" data-status="passed" open>
+<summary class="hdr"><h2>model-overrun-after-trim</h2><button class="copy-btn" data-name="model-overrun-after-trim" onclick="navigator.clipboard.writeText(this.dataset.name)">copy</button><span class="meta">cursor=(5,0) vp=[1,50]</span><span class="hdr-statuses"><span class="pass">verified</span> <span class="pass">batch:pass</span> <span class="pass">inc:pass</span> <span class="pass">apply(default):pass</span> <span class="pass">partial(default):pass</span> <span class="pass">apply(ml1):pass</span> <span class="pass">partial(ml1):pass</span> <span class="pass">apply(ml2):pass</span> <span class="pass">partial(ml2):pass</span> <span class="pass">apply(ml3):pass</span> <span class="pass">partial(ml3):pass</span> <span class="pass">apply(ml4):pass</span> <span class="pass">partial(ml4):pass</span> <span class="pass">apply(ml5):pass</span> <span class="pass">partial(ml5):pass</span> <span class="pass">apply(ml6):pass</span> <span class="pass">partial(ml6):pass</span> <span class="pass">apply(ml7):pass</span> <span class="pass">partial(ml7):pass</span> <span class="pass">apply(ml8):pass</span> <span class="pass">partial(ml8):pass</span> <span class="pass">apply(ml1000):pass</span> <span class="pass">partial(ml1000):pass</span></span></summary>
+<div class="pipelines">
+<div class="pipeline-col">
+<div class="pipeline-label">Batch</div>
+<div class="pane">
+<h3>Old</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return false;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span><span class="cursor"> </span> if (article.tags === null) {</span><span class="line"><span class="ln">6</span>    article.tags = tag;</span><span class="line"><span class="ln">7</span>  } else {</span><span class="line"><span class="ln">8</span>    article.tags = concat(tag);</span><span class="line"><span class="ln">9</span>  }</span><span class="line"><span class="ln">10</span></span><span class="line"><span class="ln">11</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">12</span></span><span class="line"><span class="ln">13</span>  return true;</span><span class="line"><span class="ln">14</span>}</span></pre></div>
+<div class="pane">
+<h3>Preview</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return false;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line del"><span class="ln">5</span><span class="cursor"> </span> if (article.tags === null) {</span><span class="line del"><span class="ln">6</span>    article.tags = tag;</span><span class="line del"><span class="ln">7</span>  } else {</span><span class="line del"><span class="ln">8</span>    article.tags = concat(tag);</span><span class="line mod side"><span class="ln">→</span>  article.tags.push(tag);</span><span class="line del"><span class="ln">9</span>  }</span><span class="line"><span class="ln">10</span></span><span class="line"><span class="ln">11</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">12</span></span><span class="line"><span class="ln">13</span>  return true;</span><span class="line"><span class="ln">14</span>}</span></pre></div>
+<div class="pane">
+<h3>New</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return false;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span>  article.tags.push(tag);<span class="cursor"> </span></span><span class="line"><span class="ln">6</span></span><span class="line"><span class="ln">7</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">8</span></span><span class="line"><span class="ln">9</span>  return true;</span><span class="line"><span class="ln">10</span>}</span></pre></div>
+</div>
+<div class="pipeline-col">
+<div class="pipeline-label">Incremental</div>
+<div class="pane">
+<h3>Old</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return false;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span><span class="cursor"> </span> if (article.tags === null) {</span><span class="line"><span class="ln">6</span>    article.tags = tag;</span><span class="line"><span class="ln">7</span>  } else {</span><span class="line"><span class="ln">8</span>    article.tags = concat(tag);</span><span class="line"><span class="ln">9</span>  }</span><span class="line"><span class="ln">10</span></span><span class="line"><span class="ln">11</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">12</span></span><span class="line"><span class="ln">13</span>  return true;</span><span class="line"><span class="ln">14</span>}</span></pre></div>
+<div class="pane">
+<h3>Preview</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return false;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line del"><span class="ln">5</span><span class="cursor"> </span> if (article.tags === null) {</span><span class="line del"><span class="ln">6</span>    article.tags = tag;</span><span class="line del"><span class="ln">7</span>  } else {</span><span class="line del"><span class="ln">8</span>    article.tags = concat(tag);</span><span class="line mod side"><span class="ln">→</span>  article.tags.push(tag);</span><span class="line del"><span class="ln">9</span>  }</span><span class="line"><span class="ln">10</span></span><span class="line"><span class="ln">11</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">12</span></span><span class="line"><span class="ln">13</span>  return true;</span><span class="line"><span class="ln">14</span>}</span></pre></div>
+<div class="pane">
+<h3>New</h3><pre><span class="line"><span class="ln">1</span>  if (!article) {</span><span class="line"><span class="ln">2</span>    return false;</span><span class="line"><span class="ln">3</span>  }</span><span class="line"><span class="ln">4</span></span><span class="line"><span class="ln">5</span>  article.tags.push(tag);<span class="cursor"> </span></span><span class="line"><span class="ln">6</span></span><span class="line"><span class="ln">7</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">8</span></span><span class="line"><span class="ln">9</span>  return true;</span><span class="line"><span class="ln">10</span>}</span></pre></div>
+</div>
+</div>
+<div class="json-section"><details class="json-details"><summary>JSON</summary>
+<div class="cols-2">
+<div class="json-col"><code class="shiki-json">[
+  {
+    &#34;cursor_col&#34;: 25,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 8,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  article.tags.push(tag);&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;    article.tags = concat(tag);&#34;
+        ],
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 5,
+        &#34;end_line&#34;: 4,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags === null) {&#34;,
+          &#34;    article.tags = tag;&#34;,
+          &#34;  } else {&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 2,
+        &#34;type&#34;: &#34;deletion&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 9,
+        &#34;end_line&#34;: 6,
+        &#34;lines&#34;: [
+          &#34;  }&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 6,
+        &#34;type&#34;: &#34;deletion&#34;
+      }
+    ],
+    &#34;startLine&#34;: 5
+  }
+]</code></div>
+<div class="json-col"><code class="shiki-json">[
+  {
+    &#34;cursor_col&#34;: 25,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 8,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  article.tags.push(tag);&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;    article.tags = concat(tag);&#34;
+        ],
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 5,
+        &#34;end_line&#34;: 4,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags === null) {&#34;,
+          &#34;    article.tags = tag;&#34;,
+          &#34;  } else {&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 2,
+        &#34;type&#34;: &#34;deletion&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 9,
+        &#34;end_line&#34;: 6,
+        &#34;lines&#34;: [
+          &#34;  }&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 6,
+        &#34;type&#34;: &#34;deletion&#34;
+      }
+    ],
+    &#34;startLine&#34;: 5
   }
 ]</code></div>
 </div>
@@ -5819,6 +6033,163 @@ pre { font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 0; }
       }
     ],
     &#34;startLine&#34;: 25
+  }
+]</code></div>
+</div>
+</details></div>
+</details>
+<details class="fixture" data-status="passed" open>
+<summary class="hdr"><h2>viewport-split-closing-brace</h2><button class="copy-btn" data-name="viewport-split-closing-brace" onclick="navigator.clipboard.writeText(this.dataset.name)">copy</button><span class="meta">cursor=(15,0) vp=[1,15]</span><span class="hdr-statuses"><span class="pass">verified</span> <span class="pass">batch:pass</span> <span class="pass">inc:pass</span> <span class="pass">apply(default):pass</span> <span class="pass">partial(default):pass</span> <span class="pass">apply(ml1):pass</span> <span class="pass">partial(ml1):pass</span> <span class="pass">apply(ml2):pass</span> <span class="pass">partial(ml2):pass</span> <span class="pass">apply(ml3):pass</span> <span class="pass">partial(ml3):pass</span> <span class="pass">apply(ml4):pass</span> <span class="pass">partial(ml4):pass</span> <span class="pass">apply(ml5):pass</span> <span class="pass">partial(ml5):pass</span> <span class="pass">apply(ml6):pass</span> <span class="pass">partial(ml6):pass</span> <span class="pass">apply(ml7):pass</span> <span class="pass">partial(ml7):pass</span> <span class="pass">apply(ml8):pass</span> <span class="pass">partial(ml8):pass</span> <span class="pass">apply(ml1000):pass</span> <span class="pass">partial(ml1000):pass</span></span></summary>
+<div class="pipelines">
+<div class="pipeline-col">
+<div class="pipeline-label">Batch</div>
+<div class="pane">
+<h3>Old</h3><pre><span class="line"><span class="ln">1</span>  });</span><span class="line"><span class="ln">2</span></span><span class="line"><span class="ln">3</span>  return true;</span><span class="line"><span class="ln">4</span>}</span><span class="line"><span class="ln">5</span></span><span class="line"><span class="ln">6</span>export function addTag(id: string, tag: string): boolean {</span><span class="line"><span class="ln">7</span>  const article = store[id];</span><span class="line"><span class="ln">8</span>  if (!article) {</span><span class="line"><span class="ln">9</span>    return false;</span><span class="line"><span class="ln">10</span>  }</span><span class="line"><span class="ln">11</span></span><span class="line"><span class="ln">12</span>  if (article.tags.length === 0) {</span><span class="line"><span class="ln">13</span>    article.tags.push(tag);</span><span class="line"><span class="ln">14</span>  } else {</span><span class="line"><span class="ln">15</span><span class="cursor"> </span>   article.tags.push(tag);</span><span class="line"><span class="ln">16</span>  }</span><span class="line"><span class="ln">17</span></span><span class="line"><span class="ln">18</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">19</span></span><span class="line"><span class="ln">20</span>  return true;</span><span class="line"><span class="ln">21</span>}</span><span class="line"><span class="ln">22</span></span><span class="line"><span class="ln">23</span>export function hasTags(id: string): boolean {</span><span class="line"><span class="ln">24</span>  const article = store[id];</span><span class="line"><span class="ln">25</span>  if (!article) {</span><span class="line"><span class="ln">26</span>    return false;</span><span class="line"><span class="ln">27</span>  }</span><span class="line"><span class="ln">28</span></span><span class="line"><span class="ln">29</span>  if (article.tags === null) {</span></pre></div>
+<div class="pane">
+<h3>Preview</h3><pre><span class="line"><span class="ln">1</span>  });</span><span class="line"><span class="ln">2</span></span><span class="line"><span class="ln">3</span>  return true;</span><span class="line"><span class="ln">4</span>}</span><span class="line"><span class="ln">5</span></span><span class="line"><span class="ln">6</span>export function addTag(id: string, tag: string): boolean {</span><span class="line"><span class="ln">7</span>  const article = store[id];</span><span class="line"><span class="ln">8</span>  if (!article) {</span><span class="line"><span class="ln">9</span>    return false;</span><span class="line"><span class="ln">10</span>  }</span><span class="line"><span class="ln">11</span></span><span class="line del"><span class="ln">12</span>  if (article.tags.length === 0) {</span><span class="line"><span class="ln">13</span>  <span class="del-hl">  </span>article.tags.push(tag);</span><span class="line del"><span class="ln">14</span>  } else {</span><span class="line del"><span class="ln">15</span><span class="cursor"> </span>   article.tags.push(tag);</span><span class="line del"><span class="ln">16</span>  }</span><span class="line"><span class="ln">17</span></span><span class="line"><span class="ln">18</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">19</span></span><span class="line"><span class="ln">20</span>  return true;</span><span class="line"><span class="ln">21</span>}</span><span class="line"><span class="ln">22</span></span><span class="line"><span class="ln">23</span>export function hasTags(id: string): boolean {</span><span class="line"><span class="ln">24</span>  const article = store[id];</span><span class="line"><span class="ln">25</span>  if (!article) {</span><span class="line"><span class="ln">26</span>    return false;</span><span class="line"><span class="ln">27</span>  }</span><span class="line"><span class="ln">28</span></span><span class="line del"><span class="ln">29</span>  if (article.tags === null) {</span><span class="line mod side"><span class="ln">→</span>  if (article.tags.length === 0) {</span></pre></div>
+<div class="pane">
+<h3>New</h3><pre><span class="line"><span class="ln">1</span>  });</span><span class="line"><span class="ln">2</span></span><span class="line"><span class="ln">3</span>  return true;</span><span class="line"><span class="ln">4</span>}</span><span class="line"><span class="ln">5</span></span><span class="line"><span class="ln">6</span>export function addTag(id: string, tag: string): boolean {</span><span class="line"><span class="ln">7</span>  const article = store[id];</span><span class="line"><span class="ln">8</span>  if (!article) {</span><span class="line"><span class="ln">9</span>    return false;</span><span class="line"><span class="ln">10</span>  }</span><span class="line"><span class="ln">11</span></span><span class="line"><span class="ln">12</span>  article.tags.push(tag);</span><span class="line"><span class="ln">13</span></span><span class="line"><span class="ln">14</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">15</span></span><span class="line"><span class="ln">16</span>  return true;</span><span class="line"><span class="ln">17</span>}</span><span class="line"><span class="ln">18</span></span><span class="line"><span class="ln">19</span>export function hasTags(id: string): boolean {</span><span class="line"><span class="ln">20</span>  const article = store[id];</span><span class="line"><span class="ln">21</span>  if (!article) {</span><span class="line"><span class="ln">22</span>    return false;</span><span class="line"><span class="ln">23</span>  }</span><span class="line"><span class="ln">24</span></span><span class="line"><span class="ln">25</span>  if (article.tags.length === 0) {</span></pre></div>
+</div>
+<div class="pipeline-col">
+<div class="pipeline-label">Incremental</div>
+<div class="pane">
+<h3>Old</h3><pre><span class="line"><span class="ln">1</span>  });</span><span class="line"><span class="ln">2</span></span><span class="line"><span class="ln">3</span>  return true;</span><span class="line"><span class="ln">4</span>}</span><span class="line"><span class="ln">5</span></span><span class="line"><span class="ln">6</span>export function addTag(id: string, tag: string): boolean {</span><span class="line"><span class="ln">7</span>  const article = store[id];</span><span class="line"><span class="ln">8</span>  if (!article) {</span><span class="line"><span class="ln">9</span>    return false;</span><span class="line"><span class="ln">10</span>  }</span><span class="line"><span class="ln">11</span></span><span class="line"><span class="ln">12</span>  if (article.tags.length === 0) {</span><span class="line"><span class="ln">13</span>    article.tags.push(tag);</span><span class="line"><span class="ln">14</span>  } else {</span><span class="line"><span class="ln">15</span><span class="cursor"> </span>   article.tags.push(tag);</span><span class="line"><span class="ln">16</span>  }</span><span class="line"><span class="ln">17</span></span><span class="line"><span class="ln">18</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">19</span></span><span class="line"><span class="ln">20</span>  return true;</span><span class="line"><span class="ln">21</span>}</span><span class="line"><span class="ln">22</span></span><span class="line"><span class="ln">23</span>export function hasTags(id: string): boolean {</span><span class="line"><span class="ln">24</span>  const article = store[id];</span><span class="line"><span class="ln">25</span>  if (!article) {</span><span class="line"><span class="ln">26</span>    return false;</span><span class="line"><span class="ln">27</span>  }</span><span class="line"><span class="ln">28</span></span><span class="line"><span class="ln">29</span>  if (article.tags === null) {</span></pre></div>
+<div class="pane">
+<h3>Preview</h3><pre><span class="line"><span class="ln">1</span>  });</span><span class="line"><span class="ln">2</span></span><span class="line"><span class="ln">3</span>  return true;</span><span class="line"><span class="ln">4</span>}</span><span class="line"><span class="ln">5</span></span><span class="line"><span class="ln">6</span>export function addTag(id: string, tag: string): boolean {</span><span class="line"><span class="ln">7</span>  const article = store[id];</span><span class="line"><span class="ln">8</span>  if (!article) {</span><span class="line"><span class="ln">9</span>    return false;</span><span class="line"><span class="ln">10</span>  }</span><span class="line"><span class="ln">11</span></span><span class="line del"><span class="ln">12</span>  if (article.tags.length === 0) {</span><span class="line"><span class="ln">13</span>  <span class="del-hl">  </span>article.tags.push(tag);</span><span class="line del"><span class="ln">14</span>  } else {</span><span class="line del"><span class="ln">15</span><span class="cursor"> </span>   article.tags.push(tag);</span><span class="line del"><span class="ln">16</span>  }</span><span class="line"><span class="ln">17</span></span><span class="line"><span class="ln">18</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">19</span></span><span class="line"><span class="ln">20</span>  return true;</span><span class="line"><span class="ln">21</span>}</span><span class="line"><span class="ln">22</span></span><span class="line"><span class="ln">23</span>export function hasTags(id: string): boolean {</span><span class="line"><span class="ln">24</span>  const article = store[id];</span><span class="line"><span class="ln">25</span>  if (!article) {</span><span class="line"><span class="ln">26</span>    return false;</span><span class="line"><span class="ln">27</span>  }</span><span class="line"><span class="ln">28</span></span><span class="line del"><span class="ln">29</span>  if (article.tags === null) {</span><span class="line mod side"><span class="ln">→</span>  if (article.tags.length === 0) {</span></pre></div>
+<div class="pane">
+<h3>New</h3><pre><span class="line"><span class="ln">1</span>  });</span><span class="line"><span class="ln">2</span></span><span class="line"><span class="ln">3</span>  return true;</span><span class="line"><span class="ln">4</span>}</span><span class="line"><span class="ln">5</span></span><span class="line"><span class="ln">6</span>export function addTag(id: string, tag: string): boolean {</span><span class="line"><span class="ln">7</span>  const article = store[id];</span><span class="line"><span class="ln">8</span>  if (!article) {</span><span class="line"><span class="ln">9</span>    return false;</span><span class="line"><span class="ln">10</span>  }</span><span class="line"><span class="ln">11</span></span><span class="line"><span class="ln">12</span>  article.tags.push(tag);</span><span class="line"><span class="ln">13</span></span><span class="line"><span class="ln">14</span>  inc(&#34;tag_added&#34;);</span><span class="line"><span class="ln">15</span></span><span class="line"><span class="ln">16</span>  return true;</span><span class="line"><span class="ln">17</span>}</span><span class="line"><span class="ln">18</span></span><span class="line"><span class="ln">19</span>export function hasTags(id: string): boolean {</span><span class="line"><span class="ln">20</span>  const article = store[id];</span><span class="line"><span class="ln">21</span>  if (!article) {</span><span class="line"><span class="ln">22</span>    return false;</span><span class="line"><span class="ln">23</span>  }</span><span class="line"><span class="ln">24</span></span><span class="line"><span class="ln">25</span>  if (article.tags.length === 0) {</span></pre></div>
+</div>
+</div>
+<div class="json-section"><details class="json-details"><summary>JSON</summary>
+<div class="cols-2">
+<div class="json-col"><code class="shiki-json">[
+  {
+    &#34;cursor_col&#34;: 2,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 13,
+        &#34;col_end&#34;: 4,
+        &#34;col_start&#34;: 2,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  article.tags.push(tag);&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;    article.tags.push(tag);&#34;
+        ],
+        &#34;render_hint&#34;: &#34;delete_chars&#34;,
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 12,
+        &#34;end_line&#34;: 2,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags.length === 0) {&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 2,
+        &#34;type&#34;: &#34;deletion&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 14,
+        &#34;end_line&#34;: 6,
+        &#34;lines&#34;: [
+          &#34;  } else {&#34;,
+          &#34;    article.tags.push(tag);&#34;,
+          &#34;  }&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 4,
+        &#34;type&#34;: &#34;deletion&#34;
+      }
+    ],
+    &#34;startLine&#34;: 12
+  },
+  {
+    &#34;cursor_col&#34;: 34,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 29,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags.length === 0) {&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;  if (article.tags === null) {&#34;
+        ],
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      }
+    ],
+    &#34;startLine&#34;: 29
+  }
+]</code></div>
+<div class="json-col"><code class="shiki-json">[
+  {
+    &#34;cursor_col&#34;: 2,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 13,
+        &#34;col_end&#34;: 4,
+        &#34;col_start&#34;: 2,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  article.tags.push(tag);&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;    article.tags.push(tag);&#34;
+        ],
+        &#34;render_hint&#34;: &#34;delete_chars&#34;,
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 12,
+        &#34;end_line&#34;: 2,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags.length === 0) {&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 2,
+        &#34;type&#34;: &#34;deletion&#34;
+      },
+      {
+        &#34;buffer_line&#34;: 14,
+        &#34;end_line&#34;: 6,
+        &#34;lines&#34;: [
+          &#34;  } else {&#34;,
+          &#34;    article.tags.push(tag);&#34;,
+          &#34;  }&#34;
+        ],
+        &#34;old_lines&#34;: null,
+        &#34;start_line&#34;: 4,
+        &#34;type&#34;: &#34;deletion&#34;
+      }
+    ],
+    &#34;startLine&#34;: 12
+  },
+  {
+    &#34;cursor_col&#34;: 34,
+    &#34;cursor_line&#34;: 1,
+    &#34;groups&#34;: [
+      {
+        &#34;buffer_line&#34;: 29,
+        &#34;end_line&#34;: 1,
+        &#34;lines&#34;: [
+          &#34;  if (article.tags.length === 0) {&#34;
+        ],
+        &#34;old_lines&#34;: [
+          &#34;  if (article.tags === null) {&#34;
+        ],
+        &#34;start_line&#34;: 1,
+        &#34;type&#34;: &#34;modification&#34;
+      }
+    ],
+    &#34;startLine&#34;: 29
   }
 ]</code></div>
 </div>

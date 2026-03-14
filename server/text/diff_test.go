@@ -1291,6 +1291,209 @@ func TestDiffWithTabs(t *testing.T) {
 	assert.True(t, exists, "change at line 2")
 }
 
+// TestGreedyMatchingStealsInsertedLine verifies that when multiple lines are
+// deleted and only one line is inserted, the best overall match wins — not
+// whichever deleted line happens to iterate first.
+//
+// Scenario from a real completion: removing a null-check block and modifying
+// `return article.tags.split(",").length;` → `return article.tags.length;`.
+// The diff library produces 5 deleted lines vs 1 inserted line. Greedy
+// iteration matched `if (article.tags === null) {` (which shares "article.tags")
+// before reaching the actual modification target, causing the real modification
+// to appear as a deletion.
+func TestGreedyMatchingStealsInsertedLine(t *testing.T) {
+	oldText := JoinLines([]string{
+		"  if (!article) {",
+		"    return 0;",
+		"  }",
+		"",
+		"  if (article.tags === null) {",
+		"    return 0;",
+		"  }",
+		"",
+		"  return article.tags.split(\",\").length;",
+		"}",
+	})
+	newText := JoinLines([]string{
+		"  if (!article) {",
+		"    return 0;",
+		"  }",
+		"",
+		"  return article.tags.length;",
+		"}",
+	})
+
+	actual := ComputeDiff(oldText, newText)
+
+	// The line `return article.tags.split(",").length;` should be a modification
+	// to `return article.tags.length;`, NOT a deletion.
+	foundModification := false
+	for _, change := range actual.Changes {
+		if change.OldContent == `  return article.tags.split(",").length;` ||
+			(change.Type == ChangeDeletion && change.Content == `  return article.tags.split(",").length;`) {
+			assert.True(t, change.Type != ChangeDeletion,
+				"return line should be modification, not deletion")
+			assert.Equal(t, "  return article.tags.length;", change.Content,
+				"modification content")
+			foundModification = true
+			break
+		}
+	}
+	assert.True(t, foundModification,
+		"should have modification from split().length to .length")
+
+	// The removed null-check block should produce deletions
+	deletedContents := make(map[string]bool)
+	for _, change := range actual.Changes {
+		if change.Type == ChangeDeletion {
+			deletedContents[change.Content] = true
+		}
+	}
+	assert.True(t, deletedContents["  if (article.tags === null) {"],
+		"null check should be deleted")
+	assert.True(t, deletedContents["    return 0;"],
+		"return 0 should be deleted")
+	assert.True(t, deletedContents["  }"],
+		"closing brace should be deleted")
+
+	// Log all changes for debugging
+	for _, change := range actual.Changes {
+		t.Logf("Type=%v OldLine=%d NewLine=%d Content=%q OldContent=%q",
+			change.Type, change.OldLineNum, change.NewLineNum, change.Content, change.OldContent)
+	}
+}
+
+// TestMatchScoreArticleTags verifies the similarity scores for the lines
+// involved in the greedy matching bug. This helps confirm the root cause.
+func TestMatchScoreArticleTags(t *testing.T) {
+	inserted := "  return article.tags.length;"
+
+	// The line that SHOULD match — highest similarity
+	bestMatch := `  return article.tags.split(",").length;`
+	bestScore := matchScore(bestMatch, inserted)
+	t.Logf("bestMatch score: %.4f", bestScore)
+	assert.True(t, bestScore >= SimilarityThreshold,
+		"best match should be above threshold")
+
+	// Lines that should NOT steal the match
+	nullCheck := "  if (article.tags === null) {"
+	nullCheckScore := matchScore(nullCheck, inserted)
+	t.Logf("nullCheck score: %.4f", nullCheckScore)
+
+	returnZero := "    return 0;"
+	returnZeroScore := matchScore(returnZero, inserted)
+	t.Logf("returnZero score: %.4f", returnZeroScore)
+
+	closeBrace := "  }"
+	closeBraceScore := matchScore(closeBrace, inserted)
+	t.Logf("closeBrace score: %.4f", closeBraceScore)
+
+	// The best match should beat all others
+	assert.True(t, bestScore > nullCheckScore,
+		"split line should score higher than null check")
+	assert.True(t, bestScore > returnZeroScore,
+		"split line should score higher than return 0")
+	assert.True(t, bestScore > closeBraceScore,
+		"split line should score higher than close brace")
+}
+
+// TestIfElseSimplificationDiffClassification verifies that when an if/else block
+// is simplified to a single line, all removed lines are classified as deletions
+// (not matched as "equal" with distant identical lines elsewhere in the text).
+func TestIfElseSimplificationDiffClassification(t *testing.T) {
+	// Exact editable region from the log (file lines 64-92)
+	oldText := JoinLines([]string{
+		"  });",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function addTag(id: string, tag: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags.length === 0) {", // line 12 rel
+		"    article.tags.push(tag);",        // line 13 rel
+		"  } else {",                         // line 14 rel
+		"    article.tags.push(tag);",        // line 15 rel
+		"  }",                                // line 16 rel — should be deleted with block
+		"",
+		"  inc(\"tag_added\");",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function hasTags(id: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags === null) {",
+	})
+
+	newText := JoinLines([]string{
+		"  });",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function addTag(id: string, tag: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  article.tags.push(tag);", // replaces the entire if/else
+		"",
+		"  inc(\"tag_added\");",
+		"",
+		"  return true;",
+		"}",
+		"",
+		"export function hasTags(id: string): boolean {",
+		"  const article = store[id];",
+		"  if (!article) {",
+		"    return false;",
+		"  }",
+		"",
+		"  if (article.tags.length === 0) {",
+	})
+
+	actual := ComputeDiff(oldText, newText)
+
+	// Log all changes for diagnosis
+	for _, change := range actual.Changes {
+		t.Logf("Type=%-14s OldLine=%2d NewLine=%2d Content=%q OldContent=%q",
+			change.Type, change.OldLineNum, change.NewLineNum, change.Content, change.OldContent)
+	}
+
+	// The closing `}` at old line 16 should be a deletion, not matched as equal
+	closeBraceDeleted := false
+	for _, change := range actual.Changes {
+		if change.Type == ChangeDeletion && change.Content == "  }" {
+			closeBraceDeleted = true
+			// It should be near the if/else block (old lines 12-16)
+			assert.True(t, change.OldLineNum >= 12 && change.OldLineNum <= 16,
+				"closing brace deletion should be in the if/else block range (12-16)")
+			break
+		}
+	}
+	assert.True(t, closeBraceDeleted,
+		"closing brace should be a deletion, not matched as equal with a distant `}`")
+
+	// All if/else deletions should have consecutive OldLineNums
+	var deletionOldLines []int
+	for _, change := range actual.Changes {
+		if change.Type == ChangeDeletion && change.OldLineNum >= 12 && change.OldLineNum <= 16 {
+			deletionOldLines = append(deletionOldLines, change.OldLineNum)
+		}
+	}
+	t.Logf("Deletion OldLineNums in if/else range: %v", deletionOldLines)
+}
+
 // TestConsecutiveDeletionsBlankLines verifies that deleting multiple consecutive
 // blank lines (including whitespace-only lines) produces one deletion per line.
 // Regression test: a shared anchor caused both deletions to map to relativeLine=1,

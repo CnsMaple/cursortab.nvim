@@ -160,6 +160,72 @@ func TestHandleCursorTarget_FarAway(t *testing.T) {
 	assert.Equal(t, 10, buf.showCursorTargetLine, "showCursorTargetLine")
 }
 
+// TestProcessCompletion_TailTrimModelOverrun tests that when the model generates
+// content beyond the editable range, trailing lines that match post-editable
+// buffer content are trimmed, preventing duplicated code.
+func TestProcessCompletion_TailTrimModelOverrun(t *testing.T) {
+	buf := newMockBuffer()
+	// Editable range is lines 1-5. Lines 6-10 are post-editable.
+	buf.lines = []string{
+		"  if (!article) {",      // 1 - editable
+		"    return false;",      // 2 - editable
+		"  }",                    // 3 - editable
+		"",                       // 4 - editable
+		"  if (tags === null) {", // 5 - editable
+		"    tags = tag;",        // 6 - post-editable
+		"  }",                    // 7 - post-editable
+		"",                       // 8 - post-editable
+		"  inc('added');",        // 9 - post-editable
+		"",                       // 10 - post-editable
+	}
+	buf.row = 3
+	buf.col = 0
+	buf.viewportTop = 1
+	buf.viewportBottom = 20
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng := createTestEngine(buf, prov, clock)
+
+	// Model generates 10 lines for a 5-line editable range.
+	// Lines 6-10 duplicate (with modification) post-editable buffer content.
+	// Lines 8-10 match exactly; lines 6-7 are modified.
+	comp := &types.Completion{
+		StartLine:  1,
+		EndLineInc: 5,
+		Lines: []string{
+			"  if (!article) {", // 1 - same
+			"    return false;", // 2 - same
+			"  }",               // 3 - same
+			"",                  // 4 - same
+			"  tags.push(tag);", // 5 - modified (within editable)
+			"  tags.push(tag);", // 6 - model overrun (different from buffer)
+			"  }",               // 7 - model overrun (matches buffer)
+			"",                  // 8 - matches buffer
+			"  inc('added');",   // 9 - matches buffer
+			"",                  // 10 - matches buffer
+		},
+	}
+
+	eng.processCompletion(comp)
+
+	// After tail-trim, lines 7-10 should be trimmed (they match buffer[7:10]).
+	// The completion should only produce changes within/near the editable range,
+	// not duplicate post-editable content.
+	if eng.stagedCompletion != nil {
+		for _, stage := range eng.stagedCompletion.Stages {
+			for _, g := range stage.Groups {
+				// No group should reference content from deep in post-editable range
+				if g.Type == "addition" {
+					for _, line := range g.Lines {
+						assert.True(t, line != "  inc('added');",
+							"inc('added') should not appear as addition — it already exists in buffer")
+					}
+				}
+			}
+		}
+	}
+}
+
 // TestProcessCompletion_NoSpuriousAdditions tests that processCompletion does not show
 // already-existing buffer lines as additions when a FIM completion's Lines span beyond EndLineInc.
 //
