@@ -109,8 +109,8 @@ var noHistoryFiles = []string{
 	"COMMIT_EDITMSG",
 }
 
-// skipHistory returns true for files where diff history should not be recorded.
-func (b *NvimBuffer) skipHistory() bool {
+// SkipHistory returns true for files where diff history should not be recorded.
+func (b *NvimBuffer) SkipHistory() bool {
 	base := filepath.Base(b.path)
 	for _, name := range noHistoryFiles {
 		if base == name {
@@ -358,7 +358,7 @@ func (b *NvimBuffer) CommitPending() {
 	// Extract granular diffs - one DiffEntry per contiguous changed region
 	diffEntries := extractGranularDiffs(originalRangeLines, lines, startLine)
 	stampEntries(diffEntries, types.DiffSourcePredicted, time.Now().UnixNano())
-	if !b.skipHistory() {
+	if !b.SkipHistory() {
 		b.diffHistories = appendAndCoalesce(b.diffHistories, diffEntries)
 	}
 
@@ -416,7 +416,7 @@ func (b *NvimBuffer) commitUserEditsInternal() bool {
 		return false
 	}
 
-	if !b.skipHistory() {
+	if !b.SkipHistory() {
 		b.diffHistories = appendAndCoalesce(b.diffHistories, diffEntries)
 	}
 

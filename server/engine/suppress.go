@@ -67,7 +67,11 @@ func (e *Engine) suppressForMidLine() bool {
 // suppressForNoEdits returns true if the file has no recent edits.
 // Diff history is cleared on save and entries decay after IdleDecayDuration,
 // so an empty processed history means no actionable edits.
+// Files that skip history (e.g. COMMIT_EDITMSG) are never suppressed.
 func (e *Engine) suppressForNoEdits() bool {
+	if e.buffer.SkipHistory() {
+		return false
+	}
 	return e.getAllFileDiffHistories() == nil
 }
 

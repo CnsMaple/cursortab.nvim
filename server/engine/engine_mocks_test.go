@@ -163,6 +163,10 @@ func (b *mockBuffer) CommitUserEdits() bool {
 func (b *mockBuffer) ClearDiffHistory() {
 }
 
+func (b *mockBuffer) SkipHistory() bool {
+	return false
+}
+
 func (b *mockBuffer) ShowCursorTarget(line int) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
