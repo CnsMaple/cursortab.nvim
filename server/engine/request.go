@@ -53,6 +53,12 @@ func (e *Engine) requestCompletion(source types.CompletionSource) {
 		return
 	}
 
+	// Contextual filter: predict acceptance probability from cursor context.
+	// Suppresses low-value requests before they reach the provider.
+	if !e.manuallyTriggered && e.suppressForContextualFilter() {
+		return
+	}
+
 	req := &types.CompletionRequest{
 		Source:                source,
 		WorkspacePath:         e.WorkspacePath,

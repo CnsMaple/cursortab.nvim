@@ -110,6 +110,9 @@ type Engine struct {
 	lastBufferLines  []string            // For detecting text changes
 	lastCursorOffset int                 // For cursor movement detection
 
+	// Contextual filter state (tracks momentum across filter invocations)
+	filterState contextualFilterState
+
 	// Metrics tracking (engine owns state, provider implements Sender)
 	metricSender   metrics.Sender
 	currentMetrics metrics.CompletionInfo
