@@ -248,7 +248,10 @@ func (e *Engine) showCurrentStage() {
 		e.completionOriginalLines = append(e.completionOriginalLines, bufferLines[i-1])
 	}
 
-	e.currentGroups = stage.Groups
+	// Deep copy groups so that partial accept mutations (advanceGroupsAfterAccept)
+	// don't corrupt the stage's original Groups, which advanceStagedCompletion
+	// needs for correct isPureInsertion/offset calculations.
+	e.currentGroups = text.CopyGroups(stage.Groups)
 }
 
 // getStage returns the stage at the given index, or nil if out of bounds

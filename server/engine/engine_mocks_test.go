@@ -192,7 +192,7 @@ func (b *mockBuffer) RegisterEventHandler(handler func(event string)) error {
 	return nil
 }
 
-func (b *mockBuffer) InsertText(line, col int, text string) error {
+func (b *mockBuffer) InsertText(line, col int, text string, keepUI bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.lastInsertLine = line
@@ -209,7 +209,7 @@ func (b *mockBuffer) InsertText(line, col int, text string) error {
 	return nil
 }
 
-func (b *mockBuffer) ReplaceLine(line int, content string) error {
+func (b *mockBuffer) ReplaceLine(line int, content string, keepUI bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.lastReplacedLine = line
@@ -220,7 +220,7 @@ func (b *mockBuffer) ReplaceLine(line int, content string) error {
 	return nil
 }
 
-func (b *mockBuffer) InsertLine(line int, content string) error {
+func (b *mockBuffer) InsertLine(line int, content string, keepUI bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	// Insert new line at position, pushing existing lines down

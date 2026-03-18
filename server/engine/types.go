@@ -35,9 +35,10 @@ type Buffer interface {
 	MoveCursor(line int, center, mark bool) error
 	RegisterEventHandler(handler func(event string)) error
 	// Partial accept operations
-	InsertText(line, col int, text string) error // Insert text at position (1-indexed line, 0-indexed col)
-	ReplaceLine(line int, content string) error  // Replace a single line (1-indexed)
-	InsertLine(line int, content string) error   // Insert a new line at position (1-indexed)
+	// keepUI=true skips clearing the extmark namespace so the UI persists until rerenderPartial replaces it.
+	InsertText(line, col int, text string, keepUI bool) error // Insert text at position (1-indexed line, 0-indexed col)
+	ReplaceLine(line int, content string, keepUI bool) error  // Replace a single line (1-indexed)
+	InsertLine(line int, content string, keepUI bool) error   // Insert a new line at position (1-indexed)
 }
 
 // Provider defines the interface that all AI providers must implement.

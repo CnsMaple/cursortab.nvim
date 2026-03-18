@@ -97,6 +97,28 @@ func GroupChanges(changes map[int]LineChange) []*Group {
 	return groups
 }
 
+// CopyGroups returns a deep copy of the given groups slice.
+// Each Group struct is copied so that mutations to the copy don't affect the original.
+func CopyGroups(groups []*Group) []*Group {
+	if groups == nil {
+		return nil
+	}
+	result := make([]*Group, len(groups))
+	for i, g := range groups {
+		cp := *g
+		if g.Lines != nil {
+			cp.Lines = make([]string, len(g.Lines))
+			copy(cp.Lines, g.Lines)
+		}
+		if g.OldLines != nil {
+			cp.OldLines = make([]string, len(g.OldLines))
+			copy(cp.OldLines, g.OldLines)
+		}
+		result[i] = &cp
+	}
+	return result
+}
+
 // setRenderHint sets the render hint for character-level optimizations
 func setRenderHint(group *Group, change LineChange) {
 	group.RenderHint = change.Type.RenderHint()

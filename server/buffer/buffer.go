@@ -469,7 +469,7 @@ func (b *NvimBuffer) MoveCursor(line int, center bool, mark bool) error {
 }
 
 // InsertText inserts text at the specified position (1-indexed line, 0-indexed col)
-func (b *NvimBuffer) InsertText(line, col int, text string) error {
+func (b *NvimBuffer) InsertText(line, col int, text string, keepUI bool) error {
 	if b.client == nil {
 		return fmt.Errorf("nvim client not set")
 	}
@@ -494,9 +494,10 @@ func (b *NvimBuffer) InsertText(line, col int, text string) error {
 	// Build new line with inserted text
 	newLine := currentLine[:col] + text + currentLine[col:]
 
-	// Clear UI namespace and apply the change
 	batch = b.client.NewBatch()
-	b.clearNamespace(batch, b.config.NsID)
+	if !keepUI {
+		b.clearNamespace(batch, b.config.NsID)
+	}
 	batch.SetBufferLines(b.id, line-1, line, false, [][]byte{[]byte(newLine)})
 
 	// Move cursor to end of inserted text
@@ -507,13 +508,15 @@ func (b *NvimBuffer) InsertText(line, col int, text string) error {
 }
 
 // ReplaceLine replaces a single line (1-indexed)
-func (b *NvimBuffer) ReplaceLine(line int, content string) error {
+func (b *NvimBuffer) ReplaceLine(line int, content string, keepUI bool) error {
 	if b.client == nil {
 		return fmt.Errorf("nvim client not set")
 	}
 
 	batch := b.client.NewBatch()
-	b.clearNamespace(batch, b.config.NsID)
+	if !keepUI {
+		b.clearNamespace(batch, b.config.NsID)
+	}
 	batch.SetBufferLines(b.id, line-1, line, false, [][]byte{[]byte(content)})
 
 	// Move cursor to end of line
@@ -523,14 +526,15 @@ func (b *NvimBuffer) ReplaceLine(line int, content string) error {
 }
 
 // InsertLine inserts a new line at the given position (1-indexed), pushing existing lines down
-func (b *NvimBuffer) InsertLine(line int, content string) error {
+func (b *NvimBuffer) InsertLine(line int, content string, keepUI bool) error {
 	if b.client == nil {
 		return fmt.Errorf("nvim client not set")
 	}
 
-	// First batch: clear namespace and insert line
 	batch := b.client.NewBatch()
-	b.clearNamespace(batch, b.config.NsID)
+	if !keepUI {
+		b.clearNamespace(batch, b.config.NsID)
+	}
 	// Insert at line-1 without removing any lines (start == end)
 	batch.SetBufferLines(b.id, line-1, line-1, false, [][]byte{[]byte(content)})
 	if err := batch.Execute(); err != nil {

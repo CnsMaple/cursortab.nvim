@@ -288,7 +288,7 @@ func TestPartialAccept_AdditionGroup(t *testing.T) {
 	assert.Equal(t, stateHasCompletion, eng.state, "state after first partial")
 	assert.Equal(t, 2, len(eng.completions[0].Lines), "remaining lines")
 	assert.Equal(t, 2, eng.completions[0].StartLine, "updated start line")
-	assert.Equal(t, 3, eng.completions[0].EndLineInc, "updated end line for addition")
+	assert.Equal(t, 2, eng.completions[0].EndLineInc, "end line preserved from original")
 }
 
 // TestPartialAccept_AppendCharsWithAddition tests that when a multi-line stage
@@ -485,10 +485,10 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		}}
 		eng.completionOriginalLines = buf.lines
 		eng.currentGroups = []*text.Group{
-			{Type: "modification", BufferLine: 1},
-			{Type: "modification", BufferLine: 2},
-			{Type: "modification", BufferLine: 3},
-			{Type: "modification", BufferLine: 4},
+			{Type: "modification", BufferLine: 1, StartLine: 1, EndLine: 1, Lines: []string{"new line 1"}, OldLines: []string{"old line 1"}},
+			{Type: "modification", BufferLine: 2, StartLine: 2, EndLine: 2, Lines: []string{"new line 2"}, OldLines: []string{"old line 2"}},
+			{Type: "modification", BufferLine: 3, StartLine: 3, EndLine: 3, Lines: []string{"new line 3"}, OldLines: []string{"old line 3"}},
+			{Type: "modification", BufferLine: 4, StartLine: 4, EndLine: 4, Lines: []string{"new line 4"}, OldLines: []string{"old line 4"}},
 		}
 
 		expectedCursorTarget := int32(8)
@@ -522,10 +522,10 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		}}
 		eng.completionOriginalLines = buf.lines
 		eng.currentGroups = []*text.Group{
-			{Type: "modification", BufferLine: 1},
-			{Type: "modification", BufferLine: 2},
-			{Type: "modification", BufferLine: 3},
-			{Type: "modification", BufferLine: 4},
+			{Type: "modification", BufferLine: 1, StartLine: 1, EndLine: 1, Lines: []string{"new line 1"}, OldLines: []string{"old line 1"}},
+			{Type: "modification", BufferLine: 2, StartLine: 2, EndLine: 2, Lines: []string{"new line 2"}, OldLines: []string{"old line 2"}},
+			{Type: "modification", BufferLine: 3, StartLine: 3, EndLine: 3, Lines: []string{"new line 3"}, OldLines: []string{"old line 3"}},
+			{Type: "modification", BufferLine: 4, StartLine: 4, EndLine: 4, Lines: []string{"new line 4"}, OldLines: []string{"old line 4"}},
 		}
 
 		expectedCursorTarget := int32(8)
@@ -572,10 +572,10 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		}}
 		eng.completionOriginalLines = buf.lines
 		eng.currentGroups = []*text.Group{
-			{Type: "modification", BufferLine: 1},
-			{Type: "modification", BufferLine: 2},
-			{Type: "modification", BufferLine: 3},
-			{Type: "modification", BufferLine: 4},
+			{Type: "modification", BufferLine: 1, StartLine: 1, EndLine: 1, Lines: []string{"X"}, OldLines: []string{"x"}},
+			{Type: "modification", BufferLine: 2, StartLine: 2, EndLine: 2, Lines: []string{"Y"}, OldLines: []string{"y"}},
+			{Type: "modification", BufferLine: 3, StartLine: 3, EndLine: 3, Lines: []string{"Z"}, OldLines: []string{"z"}},
+			{Type: "modification", BufferLine: 4, StartLine: 4, EndLine: 4, Lines: []string{"W"}, OldLines: []string{"w"}},
 		}
 		eng.cursorTarget = &types.CursorPredictionTarget{
 			RelativePath:    "test.go",
@@ -640,7 +640,10 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 			Lines:      []string{"A", "B"},
 		}}
 		eng.completionOriginalLines = []string{"a", "b"}
-		eng.currentGroups = []*text.Group{{Type: "modification", BufferLine: 1}}
+		eng.currentGroups = []*text.Group{
+			{Type: "modification", BufferLine: 1, StartLine: 1, EndLine: 1, Lines: []string{"A"}, OldLines: []string{"a"}},
+			{Type: "modification", BufferLine: 2, StartLine: 2, EndLine: 2, Lines: []string{"B"}, OldLines: []string{"b"}},
+		}
 		eng.stagedCompletion = &text.StagedCompletion{
 			Stages:     []*text.Stage{stage1, stage2},
 			CurrentIdx: 0,
@@ -699,4 +702,73 @@ func TestAdvanceStagedCompletion_AdditionGroupsSpanningMultipleOldLines(t *testi
 	// Stage 2 should be shifted by 3 (from 10 to 13)
 	assert.Equal(t, 13, stage2.BufferStart, "stage 2 BufferStart shifted by 3")
 	assert.Equal(t, 13, stage2.BufferEnd, "stage 2 BufferEnd shifted by 3")
+}
+
+// TestPartialAccept_StagedOffset_PureAddition tests that after partially accepting
+// through a pure addition stage, the cumulative offset for subsequent stages is
+// computed correctly. When all groups are additions and BufferStart==BufferEnd,
+// the stage is a pure insertion (oldLineCount=0). Partial accept mutates the
+// shared Group structs, which must not corrupt the isPureInsertion check.
+func TestPartialAccept_StagedOffset_PureAddition(t *testing.T) {
+	buf := newMockBuffer()
+	// Buffer has 5 lines. Stage 1 is at line 3 (pure addition of 3 lines).
+	// Stage 2 is at line 4. After stage 1, stage 2 should shift by +3.
+	buf.lines = []string{"line1", "line2", "line3", "line4", "line5"}
+	buf.row = 3
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng, cancel := createTestEngineWithContext(buf, prov, clock)
+	defer cancel()
+
+	// Stage 1: pure addition at line 3 — insert 3 new lines, replace 0 old lines
+	stage1 := &text.Stage{
+		BufferStart: 3,
+		BufferEnd:   3,
+		Lines:       []string{"    a = 1", "    b = 2", "    c = 3"},
+		Groups: []*text.Group{
+			{Type: "addition", BufferLine: 3, StartLine: 1, EndLine: 3,
+				Lines: []string{"    a = 1", "    b = 2", "    c = 3"}},
+		},
+		CursorTarget: &types.CursorPredictionTarget{LineNumber: 6, ShouldRetrigger: false},
+	}
+
+	// Stage 2: at line 4
+	stage2 := &text.Stage{
+		BufferStart: 4,
+		BufferEnd:   4,
+		Lines:       []string{"extra"},
+		Groups: []*text.Group{
+			{Type: "addition", BufferLine: 4, StartLine: 1, EndLine: 1,
+				Lines: []string{"extra"}},
+		},
+	}
+
+	eng.stagedCompletion = &text.StagedCompletion{
+		Stages:     []*text.Stage{stage1, stage2},
+		CurrentIdx: 0,
+	}
+
+	// Show stage 1
+	eng.state = stateHasCompletion
+	eng.completions = []*types.Completion{{
+		StartLine:  3,
+		EndLineInc: 3,
+		Lines:      []string{"    a = 1", "    b = 2", "    c = 3"},
+	}}
+	eng.completionOriginalLines = []string{"line3"}
+	// Use CopyGroups like showCurrentStage does, to avoid mutating stage groups
+	eng.currentGroups = text.CopyGroups(stage1.Groups)
+
+	// Partial accept all 3 addition lines
+	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	assert.Equal(t, stateHasCompletion, eng.state, "should still have completion after 1st")
+	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	assert.Equal(t, stateHasCompletion, eng.state, "should still have completion after 2nd")
+	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	// This finalizes stage 1 and advances to stage 2
+
+	// Stage 1 was a pure insertion: 0 old lines → 3 new lines → offset = +3
+	// Stage 2 original BufferStart=4 should shift to 4+3=7
+	assert.Equal(t, 7, stage2.BufferStart, "stage 2 BufferStart should be offset by +3")
+	assert.Equal(t, 7, stage2.BufferEnd, "stage 2 BufferEnd should be offset by +3")
 }
