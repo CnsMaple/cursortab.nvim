@@ -2,6 +2,12 @@
 
 A Neovim plugin that provides local edit completions and cursor predictions.
 
+> [!NOTE]
+>
+> **We're exploring the idea of an open source dataset** to improve completions,
+> with real usage data from the community. If you're interested,
+> [join the discussion](https://github.com/cursortab/cursortab.nvim/discussions/59).
+
 > [!WARNING]
 >
 > **This is an early-stage project.** Expect bugs, incomplete features, and
