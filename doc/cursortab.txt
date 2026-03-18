@@ -26,7 +26,7 @@ SETUP                                                         *cursortab-setup*
 Using lazy.nvim: >lua
 
   {
-    "leonardcser/cursortab.nvim",
+    "cursortab/cursortab.nvim",
     build = "cd server && go build",
     config = function()
       require("cursortab").setup({

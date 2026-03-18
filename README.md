@@ -51,7 +51,7 @@ A Neovim plugin that provides local edit completions and cursor predictions.
 
 ```lua
 {
-  "leonardcser/cursortab.nvim",
+  "cursortab/cursortab.nvim",
   -- version = "*",  -- Use latest tagged version for more stability
   lazy = false,      -- The server is already lazy loaded
   build = "cd server && go build",
@@ -65,7 +65,7 @@ A Neovim plugin that provides local edit completions and cursor predictions.
 
 ```lua
 use {
-  "leonardcser/cursortab.nvim",
+  "cursortab/cursortab.nvim",
   -- tag = "*",  -- Use latest tagged version for more stability
   run = "cd server && go build",
   config = function()
