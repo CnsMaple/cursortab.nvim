@@ -54,6 +54,7 @@ func (e *Engine) requestStreamingCompletion(provider LineStreamProvider, req *ty
 			e.buffer.Row(),
 			e.buffer.Col(),
 			req.FilePath,
+			e.buffer.AvailableWidth(),
 		),
 		ProviderContext: providerCtx,
 		Request:         req,

@@ -109,6 +109,7 @@ type IncrementalStageBuilder struct {
 	CursorRow          int
 	CursorCol          int // Current cursor column (0-indexed)
 	FilePath           string
+	AvailableWidth     int
 
 	// State
 	diffBuilder          *IncrementalDiffBuilder
@@ -128,6 +129,7 @@ func NewIncrementalStageBuilder(
 	viewportTop, viewportBottom int,
 	cursorRow, cursorCol int,
 	filePath string,
+	availableWidth int,
 ) *IncrementalStageBuilder {
 	return &IncrementalStageBuilder{
 		OldLines:           oldLines,
@@ -139,6 +141,7 @@ func NewIncrementalStageBuilder(
 		CursorRow:          cursorRow,
 		CursorCol:          cursorCol,
 		FilePath:           filePath,
+		AvailableWidth:     availableWidth,
 		diffBuilder:        NewIncrementalDiffBuilder(oldLines),
 	}
 }
@@ -164,6 +167,11 @@ func (b *IncrementalStageBuilder) AddLine(line string) *Stage {
 		// would exclude unmatched old lines (e.g., a partially-typed cursor
 		// line) from the diff, causing modifications to appear as additions.
 		if b.MaxVisibleLines > 0 && b.changeCount >= b.MaxVisibleLines {
+			b.deferredBuild = true
+		}
+		// Viewport limit: additions past viewport bottom create virtual lines
+		// that overflow; defer to split them into a later stage.
+		if b.ViewportBottom > 0 && bufferLine > b.ViewportBottom && change.Type == ChangeAddition {
 			b.deferredBuild = true
 		}
 		return nil
@@ -219,6 +227,7 @@ func (b *IncrementalStageBuilder) buildFirstStage() *Stage {
 		BaseLineOffset:     b.BaseLineOffset,
 		ProximityThreshold: b.ProximityThreshold,
 		MaxLines:           b.MaxVisibleLines,
+		AvailableWidth:     b.AvailableWidth,
 		NewLines:           b.diffBuilder.NewLines,
 		OldLines:           partialOldLines,
 		FilePath:           b.FilePath,
@@ -266,6 +275,7 @@ func (b *IncrementalStageBuilder) Finalize() *StagingResult {
 		BaseLineOffset:     b.BaseLineOffset,
 		ProximityThreshold: b.ProximityThreshold,
 		MaxLines:           b.MaxVisibleLines,
+		AvailableWidth:     b.AvailableWidth,
 		NewLines:           b.diffBuilder.NewLines,
 		OldLines:           b.OldLines,
 		FilePath:           b.FilePath,

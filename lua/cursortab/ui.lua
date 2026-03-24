@@ -576,33 +576,22 @@ end
 local function render_modification(group, nvim_line, virt_line_offset, current_win, current_buf, syntax_ft, ns_id)
 	local line_count = group.end_line - group.start_line + 1
 	local win_width = vim.api.nvim_win_get_width(current_win)
-	local textoff = vim.fn.getwininfo(current_win)[1].textoff or 0
-	local available = win_width - textoff
+	local use_stacked = group.render_hint == "stacked"
 
-	-- Compute max display width across all old lines so overlays align
+	-- Compute max display width across all old lines for side-by-side overlay positioning
 	local max_old_width = 0
-	for i = 1, line_count do
-		local line_content = vim.api.nvim_buf_get_lines(current_buf, nvim_line + i - 1, nvim_line + i, false)[1] or ""
-		local w = vim.fn.strdisplaywidth(line_content)
-		if w > max_old_width then
-			max_old_width = w
-		end
-	end
-	local overlay_col = max_old_width + 2
-
-	-- Compute max display width of new lines
-	local max_new_width = 0
-	for i = 1, line_count do
-		local new_line = group.lines[i]
-		if new_line then
-			local w = vim.fn.strdisplaywidth(new_line)
-			if w > max_new_width then
-				max_new_width = w
+	local overlay_col = 0
+	if not use_stacked then
+		for i = 1, line_count do
+			local line_content =
+				vim.api.nvim_buf_get_lines(current_buf, nvim_line + i - 1, nvim_line + i, false)[1] or ""
+			local w = vim.fn.strdisplaywidth(line_content)
+			if w > max_old_width then
+				max_old_width = w
 			end
 		end
+		overlay_col = max_old_width + 2
 	end
-
-	local use_stacked = overlay_col + max_new_width > available
 
 	-- Highlight all old lines with deletion background
 	for i = 1, line_count do
@@ -610,7 +599,6 @@ local function render_modification(group, nvim_line, virt_line_offset, current_w
 	end
 
 	if use_stacked then
-		-- Stacked fallback: insert virtual lines below the last old line
 		local last_nvim_line = nvim_line + line_count - 1
 		local virt_lines_array = {}
 		for _ = 1, line_count do
@@ -740,6 +728,27 @@ local function show_completion(diff_result)
 	-- Cache values used across all groups
 	local syntax_ft = vim.api.nvim_get_option_value("filetype", { buf = current_buf })
 	local ns_id = daemon.get_namespace_id()
+
+	-- Pre-scroll viewport if stacked modifications would overflow the bottom
+	local win_height = vim.api.nvim_win_get_height(current_win)
+	local topline = vim.fn.getwininfo(current_win)[1].topline
+	local max_row = 0
+	local extra_virt = 0
+	for _, group in ipairs(diff_result.groups or {}) do
+		local nvim_line = group.buffer_line - 1
+		local line_count = group.end_line - group.start_line + 1
+		if group.render_hint == "stacked" then
+			local last_row = (nvim_line + 2 * line_count - 1 + extra_virt) - (topline - 1)
+			if last_row > max_row then
+				max_row = last_row
+			end
+			extra_virt = extra_virt + line_count
+		end
+	end
+	if max_row >= win_height then
+		local scroll = max_row - win_height + 1
+		vim.fn.winrestview({ topline = topline + scroll })
+	end
 
 	local found_first_append = false
 	local virt_line_offset = 0 -- Track cumulative virtual lines for overlay positioning

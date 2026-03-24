@@ -332,6 +332,7 @@ func (e *Engine) processCompletion(completion *types.Completion) bool {
 		BaseLineOffset:     completion.StartLine,
 		ProximityThreshold: e.config.CursorPrediction.ProximityThreshold,
 		MaxLines:           e.config.MaxVisibleLines,
+		AvailableWidth:     e.buffer.AvailableWidth(),
 		FilePath:           e.buffer.Path(),
 		NewLines:           completion.Lines,
 		OldLines:           originalLines,

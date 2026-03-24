@@ -4,6 +4,7 @@ import (
 	"cursortab/types"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Stage represents a single stage of changes to apply
@@ -50,6 +51,7 @@ type StagingParams struct {
 	BaseLineOffset     int // Where the diff range starts in the buffer (1-indexed)
 	ProximityThreshold int // Max gap between changes to be in same stage
 	MaxLines           int // Max lines per stage (0 to disable)
+	AvailableWidth     int // Window text width for stacked-vs-side-by-side decision
 	FilePath           string
 	NewLines           []string // New content lines for extracting stage content
 	OldLines           []string // Old content lines for extracting old content in groups
@@ -76,8 +78,8 @@ func CreateStages(p *StagingParams) *StagingResult {
 		return allChanges[i].change.MapKey() < allChanges[j].change.MapKey()
 	})
 
-	// Step 2: Group changes into stages (proximity + maxLines)
-	allStages := groupChangesIntoStages(allChanges, p.ProximityThreshold, p.MaxLines, p.BaseLineOffset, diff)
+	// Step 2: Group changes into stages (proximity + maxLines + viewport)
+	allStages := groupChangesIntoStages(allChanges, p.ProximityThreshold, p.MaxLines, p.ViewportBottom, p.BaseLineOffset, diff)
 
 	if len(allStages) == 0 {
 		return nil
@@ -93,8 +95,8 @@ func CreateStages(p *StagingParams) *StagingResult {
 		return allStages[i].startLine < allStages[j].startLine
 	})
 
-	// Step 4: Finalize stages (content, cursor targets)
-	finalizeStages(allStages, p.NewLines, p.OldLines, p.FilePath, p.BaseLineOffset, diff, p.CursorRow, p.CursorCol)
+	// Step 4: Finalize stages (content, cursor targets, stacked hints)
+	finalizeStages(allStages, p.NewLines, p.OldLines, p.FilePath, p.BaseLineOffset, diff, p.CursorRow, p.CursorCol, p.AvailableWidth)
 
 	// Step 5: Check if first stage needs navigation UI
 	firstNeedsNav := StageNeedsNavigation(
@@ -115,7 +117,7 @@ type indexedChange struct {
 
 // groupChangesIntoStages groups sorted changes into partial Stage structs based on
 // buffer-line proximity and stage line limits.
-func groupChangesIntoStages(changes []indexedChange, proximityThreshold int, maxLines int, baseLineOffset int, diff *DiffResult) []*Stage {
+func groupChangesIntoStages(changes []indexedChange, proximityThreshold int, maxLines int, viewportBottom int, baseLineOffset int, diff *DiffResult) []*Stage {
 	if len(changes) == 0 {
 		return nil
 	}
@@ -141,7 +143,10 @@ func groupChangesIntoStages(changes []indexedChange, proximityThreshold int, max
 			}
 			stageLineCount := currentStage.endLine - currentStage.startLine + 1
 			exceedsMaxLines := maxLines > 0 && stageLineCount >= maxLines
-			if gap <= proximityThreshold && !exceedsMaxLines {
+			// Additions past the viewport create virtual lines that overflow;
+			// deletions/modifications overlay existing lines, so they're safe.
+			additionPastViewport := viewportBottom > 0 && ic.bufferLine > viewportBottom && ic.change.Type == ChangeAddition
+			if gap <= proximityThreshold && !exceedsMaxLines && !additionPastViewport {
 				currentStage.rawChanges = append(currentStage.rawChanges, ic.change)
 				if mapKey > currentStage.endLine {
 					currentStage.endLine = mapKey
@@ -358,7 +363,7 @@ func computeStageRanges(stage *Stage, baseLineOffset int, diff *DiffResult) {
 // finalizeStages populates the remaining fields of partial stages.
 // It extracts content, remaps changes to relative line numbers, computes groups,
 // and sets cursor targets based on sort order.
-func finalizeStages(stages []*Stage, newLines []string, oldLines []string, filePath string, baseLineOffset int, diff *DiffResult, cursorRow, cursorCol int) {
+func finalizeStages(stages []*Stage, newLines []string, oldLines []string, filePath string, baseLineOffset int, diff *DiffResult, cursorRow, cursorCol int, availableWidth int) {
 	for i, stage := range stages {
 		isLastStage := i == len(stages)-1
 
@@ -482,6 +487,11 @@ func finalizeStages(stages []*Stage, newLines []string, oldLines []string, fileP
 			}
 		}
 
+		// Set stacked render hint for multi-line modification groups
+		if availableWidth > 0 {
+			setStackedHints(groups, availableWidth)
+		}
+
 		// Populate the stage's exported fields
 		stage.Lines = stageLines
 		stage.Changes = remappedChanges
@@ -491,8 +501,33 @@ func finalizeStages(stages []*Stage, newLines []string, oldLines []string, fileP
 		stage.CursorTarget = cursorTarget
 		stage.IsLastStage = isLastStage
 
-		// Clear rawChanges (no longer needed)
 		stage.rawChanges = nil
+	}
+}
+
+// setStackedHints sets RenderHint="stacked" on modification groups when
+// side-by-side rendering won't fit the available width.
+func setStackedHints(groups []*Group, availableWidth int) {
+	for _, g := range groups {
+		if g.Type != "modification" || g.RenderHint != "" {
+			continue
+		}
+
+		maxOldWidth := 0
+		for _, line := range g.OldLines {
+			if w := utf8.RuneCountInString(line); w > maxOldWidth {
+				maxOldWidth = w
+			}
+		}
+		maxNewWidth := 0
+		for _, line := range g.Lines {
+			if w := utf8.RuneCountInString(line); w > maxNewWidth {
+				maxNewWidth = w
+			}
+		}
+		if maxOldWidth+2+maxNewWidth > availableWidth {
+			g.RenderHint = "stacked"
+		}
 	}
 }
 

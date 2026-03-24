@@ -74,6 +74,7 @@ func TestIncrementalStageBuilder_SingleStage(t *testing.T) {
 		1, // cursorRow
 		0, // cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Add modified lines that should all be in the same stage
@@ -113,6 +114,7 @@ func TestIncrementalStageBuilder_MultipleStages(t *testing.T) {
 		1, // cursorRow
 		0, // cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Add lines with gaps > proximityThreshold to create multiple stages
@@ -145,6 +147,7 @@ func TestIncrementalStageBuilder_StageFinalizationOnGap(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Line 1: exact match
@@ -223,6 +226,7 @@ func TestIncrementalStageBuilder_ViewportBoundary(t *testing.T) {
 		3,  // cursorRow
 		0,  // cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Modifications in viewport (lines 1-5)
@@ -281,6 +285,7 @@ func TestIncrementalStageBuilder_BaseLineOffset(t *testing.T) {
 		15, 30, // viewport (lines 15-30 visible)
 		22, 0, // cursorRow, cursorCol
 		"test.ts",
+		0, // availableWidth
 	)
 
 	// Model outputs modified content
@@ -339,6 +344,7 @@ func TestIncrementalStageBuilder_BaseLineOffsetWithGap(t *testing.T) {
 		40, 60, // viewport
 		52, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Feed lines with a modification at the beginning
@@ -388,6 +394,7 @@ func TestIncrementalStageBuilder_GapDetectionWithSimilarityMatching(t *testing.T
 		40, 80, // viewport
 		58, 0, // cursorRow, cursorCol
 		"test.ts",
+		0, // availableWidth
 	)
 
 	// Model outputs content where:
@@ -453,6 +460,7 @@ func TestIncrementalStageBuilder_GapDetectionBehavior(t *testing.T) {
 		5, 20, // viewport
 		12, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Output lines where:
@@ -720,6 +728,7 @@ func TestIncrementalStageBuilder_WhenModelOutputStartsMidFile(t *testing.T) {
 		0, 0, // viewport disabled
 		5, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Model starts outputting from line 5 (skipping lines 1-4)
@@ -885,6 +894,7 @@ func TestIncrementalStageBuilder_DuplicateOutputHandling(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Exact matches for first 3 lines
@@ -939,7 +949,7 @@ func TestIncrementalStageBuilder_ConsistencyWithComputeDiff(t *testing.T) {
 	})
 
 	// Use incremental builder with Finalize()
-	builder := NewIncrementalStageBuilder(oldLines, 1, 10, 0, 0, 0, 1, 0, "test.go")
+	builder := NewIncrementalStageBuilder(oldLines, 1, 10, 0, 0, 0, 1, 0, "test.go", 0)
 	for _, line := range newLines {
 		builder.AddLine(line)
 	}
@@ -1006,6 +1016,7 @@ func TestIncrementalStageBuilder_EmptyInput(t *testing.T) {
 		0, 0,       // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	builder.AddLine("new content")
@@ -1032,6 +1043,7 @@ func TestIncrementalStageBuilder_SingleLine(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Modify the single line
@@ -1079,6 +1091,7 @@ func TestIncrementalStageBuilder_LargeGap(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Modify first line
@@ -1112,6 +1125,7 @@ func TestIncrementalStageBuilder_ConsecutiveModifications(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Modify lines 2-4 consecutively
@@ -1165,6 +1179,7 @@ func TestIncrementalStageBuilder_LowSimilarityReplacement(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Line 1: exact match
@@ -1208,6 +1223,7 @@ func TestIncrementalStageBuilder_AppendCharsWithAdditionsBelow(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.txt",
+		0, // availableWidth
 	)
 
 	builder.AddLine("partial content completed")
@@ -1249,6 +1265,7 @@ func TestIncrementalStageBuilder_AdditionsAboveWithAppendChars(t *testing.T) {
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.txt",
+		0, // availableWidth
 	)
 
 	// Model outputs new lines first, then completes the original partial line
@@ -1290,6 +1307,7 @@ func TestIncrementalStageBuilder_AdditionsAboveAndBelowWithAppendChars(t *testin
 		0, 0, // viewport disabled
 		1, 0, // cursorRow, cursorCol
 		"test.txt",
+		0, // availableWidth
 	)
 
 	// Model outputs: additions above, completed line, additions below
@@ -1346,6 +1364,7 @@ func TestIncrementalStageBuilder_MaxVisibleLines(t *testing.T) {
 		0, 0, // viewport disabled
 		3, 0, // cursorRow, cursorCol
 		"test.py",
+		0, // availableWidth
 	)
 
 	// Feed the model output line by line
@@ -1413,6 +1432,7 @@ func TestIncrementalStageBuilder_MaxVisibleLines_ThreeStages(t *testing.T) {
 		0, 0, // viewport disabled
 		3, 0, // cursorRow, cursorCol
 		"test.py",
+		0, // availableWidth
 	)
 
 	// Feed the model output
@@ -1481,6 +1501,7 @@ func TestIncrementalStageBuilder_BlankLineAdditions(t *testing.T) {
 		0, 0, // viewport disabled
 		3, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Model outputs completed content with blocks separated by blank lines
@@ -1544,6 +1565,7 @@ func TestIncrementalStageBuilder_EmptyLineFilledWithContent(t *testing.T) {
 		0, 0, // viewport disabled
 		3, 0, // cursorRow, cursorCol
 		"test.txt",
+		0, // availableWidth
 	)
 
 	builder.AddLine("header")
@@ -1586,6 +1608,7 @@ func TestIncrementalStageBuilder_WhitespaceOnlyLineModification(t *testing.T) {
 		0, 0, // viewport disabled
 		2, 4, // cursorRow=2, cursorCol=4
 		"test.go",
+		0, // availableWidth
 	)
 
 	builder.AddLine("func main() {")
@@ -1670,6 +1693,7 @@ func TestIncrementalStageBuilder_ModificationBufferLineUsesOldPosition(t *testin
 		0, 0, // viewport disabled
 		6, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Stream the new content
@@ -1718,6 +1742,7 @@ func TestIncrementalStageBuilder_AdditionsBeforeCursorModificationAnchoredAtCurs
 		0, 0, // viewport disabled
 		6, 0, // cursorRow, cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Stream: first line modified, additions inserted, cursor line modified
@@ -1773,6 +1798,7 @@ func TestIncrementalStageBuilder_WhitespaceLineExpansion(t *testing.T) {
 		0, 0, // viewport disabled
 		6, 0, // cursorRow, cursorCol
 		"test.py",
+		0, // availableWidth
 	)
 
 	// Stream the completion: adds content before cursor line, then modifies cursor line
@@ -1862,6 +1888,7 @@ func TestIncrementalStageBuilder_LowSimilarityModification(t *testing.T) {
 				0, 0, // viewport disabled
 				tt.baseLineOffset, 0, // cursor at the line being modified
 				"test.ts",
+				0, // availableWidth
 			)
 
 			builder.AddLine(tt.newLine)
@@ -1899,6 +1926,7 @@ func TestIncrementalStageBuilder_InsertedLineIsAddition(t *testing.T) {
 		0, 0, // viewport (disabled)
 		1, 0, // cursor at line 1
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Insert an empty line between line 1 and line 2
@@ -1961,6 +1989,7 @@ func TestIncrementalStageBuilder_BlankLineInsertionsBetweenFunctions(t *testing.
 		1, 50, // viewport
 		10, 0, // cursorRow, cursorCol
 		"test.py",
+		0, // availableWidth
 	)
 
 	// Stream all new lines (model adds 2 blank lines before each def/if block)
@@ -2037,6 +2066,7 @@ func TestIncrementalStageBuilder_LowSimilarityModificationBufferRange(t *testing
 		0, 0, // viewport disabled
 		6, 0, // cursor at the printf line
 		"test.c",
+		0, // availableWidth
 	)
 
 	builder.AddLine(`#include "header.h"`)
@@ -2083,6 +2113,7 @@ func TestIncrementalStageBuilder_EmptyStreamProducesNoStages(t *testing.T) {
 		1,  // cursorRow
 		0,  // cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// No lines added — simulates a provider returning empty content
@@ -2109,6 +2140,7 @@ func TestIncrementalStageBuilder_FewModificationsInLargeFile(t *testing.T) {
 		15, // cursorRow (near the modifications)
 		0,  // cursorCol
 		"test.go",
+		0, // availableWidth
 	)
 
 	// Stream the full file with 4 modifications in the middle (lines 12-15)
@@ -2186,6 +2218,7 @@ func TestIncrementalStageBuilder_MaxVisibleLinesSplitNoSpuriousDeletions(t *test
 		3, // cursorRow
 		0, // cursorCol
 		"test.ts",
+		0, // availableWidth
 	)
 
 	// Stream emits the full modified file: first 5 lines unchanged, then 8 changed routes
@@ -2315,6 +2348,7 @@ func TestIncrementalStageBuilder_DuplicateLinesAcrossFunctions(t *testing.T) {
 				14, // cursorRow (on the "    " line inside ecg_highpass)
 				4,  // cursorCol
 				"test.c",
+				0, // availableWidth
 			)
 
 			var streamStageCount int
@@ -2423,6 +2457,7 @@ func TestIncrementalStageBuilder_PartialLineModificationDuringStreaming(t *testi
 		0, 0, // viewport disabled
 		11, 10, // cursorRow (line 11), cursorCol (end of "def insers")
 		"test.py",
+		0, // availableWidth
 	)
 
 	// Stream lines: first 10 match, then the changes start

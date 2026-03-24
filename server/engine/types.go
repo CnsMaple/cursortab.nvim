@@ -20,6 +20,7 @@ type Buffer interface {
 	Path() string
 	Version() int
 	ViewportBounds() (top, bottom int)
+	AvailableWidth() int
 	PreviousLines() []string
 	OriginalLines() []string
 	DiffHistories() []*types.DiffEntry

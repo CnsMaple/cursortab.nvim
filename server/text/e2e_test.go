@@ -404,6 +404,7 @@ func TestE2E(t *testing.T) {
 				params.ViewportTop, params.ViewportBottom,
 				params.CursorRow, params.CursorCol,
 				"test.txt",
+				0, // availableWidth
 			)
 			for _, line := range newLines {
 				builder.AddLine(line)

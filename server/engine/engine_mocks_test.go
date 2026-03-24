@@ -99,6 +99,10 @@ func (b *mockBuffer) ViewportBounds() (top, bottom int) {
 	return b.viewportTop, b.viewportBottom
 }
 
+func (b *mockBuffer) AvailableWidth() int {
+	return 120
+}
+
 func (b *mockBuffer) PreviousLines() []string {
 	b.mu.Lock()
 	defer b.mu.Unlock()

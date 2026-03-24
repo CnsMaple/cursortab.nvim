@@ -575,7 +575,7 @@ func TestGroupChangesIntoStages(t *testing.T) {
 		{diff.Changes[3], 20},
 		{diff.Changes[4], 21},
 	}
-	stages := groupChangesIntoStages(indexed, 3, 0, 1, diff)
+	stages := groupChangesIntoStages(indexed, 3, 0, 0, 1, diff)
 
 	assert.Len(t, 2, stages, "stages")
 
@@ -590,7 +590,7 @@ func TestGroupChangesIntoStages(t *testing.T) {
 }
 
 func TestGroupChangesIntoStages_EmptyInput(t *testing.T) {
-	stages := groupChangesIntoStages(nil, 3, 0, 1, &DiffResult{})
+	stages := groupChangesIntoStages(nil, 3, 0, 0, 1, &DiffResult{})
 
 	assert.Nil(t, stages, "stages for empty input")
 }
@@ -1622,7 +1622,7 @@ func TestFinalizeStages_SingleDeletion(t *testing.T) {
 	newLines := []string{"1", "2", "3", "4", "6", "7", "8", "9", "10"} // Line 5 deleted
 
 	stages := []*Stage{stage}
-	finalizeStages(stages, newLines, nil, "test.go", 1, diff, 1, 0)
+	finalizeStages(stages, newLines, nil, "test.go", 1, diff, 1, 0, 0)
 
 	assert.Equal(t, 1, len(stages), "should have 1 stage")
 	// For deletions, lines might be empty or contain surrounding context

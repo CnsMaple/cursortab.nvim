@@ -38,6 +38,7 @@ type NvimBuffer struct {
 	// Viewport bounds (1-indexed line numbers)
 	viewportTop    int // First visible line (1-indexed)
 	viewportBottom int // Last visible line (1-indexed)
+	availableWidth int // Window width minus sign/number column (textoff)
 
 	config Config
 
@@ -89,6 +90,8 @@ func (b *NvimBuffer) Version() int { return b.version }
 func (b *NvimBuffer) ViewportBounds() (top, bottom int) {
 	return b.viewportTop, b.viewportBottom
 }
+
+func (b *NvimBuffer) AvailableWidth() int { return b.availableWidth }
 
 func (b *NvimBuffer) PreviousLines() []string { return b.previousLines }
 
@@ -179,7 +182,6 @@ func (b *NvimBuffer) Sync(workspacePath string) (*SyncResult, error) {
 	var window nvim.Window
 	var cursor [2]int
 	var scrollOffset int
-	var viewportBounds [2]int
 	var nvimCwd string
 
 	batch.CurrentBuffer(&currentBuf)
@@ -197,13 +199,17 @@ func (b *NvimBuffer) Sync(workspacePath string) (*SyncResult, error) {
 		return view.leftcol or 0
 	`, &scrollOffset, nil)
 
-	// Get vertical viewport bounds (first and last potentially visible line, 1-indexed).
+	// Get vertical viewport bounds and available text width.
 	// Use window height instead of w$ so that short files still report the full
 	// visible area (w$ only returns the last line with content).
+	var viewportInfo [3]int
 	batch.ExecLua(`
 		local top = vim.fn.line("w0")
-		return {top, top + vim.api.nvim_win_get_height(0) - 1}
-	`, &viewportBounds, nil)
+		local height = vim.api.nvim_win_get_height(0)
+		local win_width = vim.api.nvim_win_get_width(0)
+		local textoff = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1].textoff or 0
+		return {top, top + height - 1, win_width - textoff}
+	`, &viewportInfo, nil)
 
 	if err := batch.Execute(); err != nil {
 		logger.Error("error executing sync batch: %v", err)
@@ -225,8 +231,9 @@ func (b *NvimBuffer) Sync(workspacePath string) (*SyncResult, error) {
 	b.scrollOffsetX = scrollOffset // Horizontal scroll offset
 
 	// Update viewport bounds (1-indexed)
-	b.viewportTop = viewportBounds[0]
-	b.viewportBottom = viewportBounds[1]
+	b.viewportTop = viewportInfo[0]
+	b.viewportBottom = viewportInfo[1]
+	b.availableWidth = viewportInfo[2]
 
 	// Convert absolute path to relative workspace path using Neovim's actual cwd
 	relativePath := makeRelativeToWorkspace(path, nvimCwd)
