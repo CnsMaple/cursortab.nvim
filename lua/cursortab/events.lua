@@ -46,6 +46,43 @@ local awaiting_completion_after_jump = false
 ---@type boolean
 local text_changed_this_tick = false
 
+-- True while cursortab is applying a completion; native completion plugins should stay closed
+---@type boolean
+local completing = false
+
+-- Whether blink-cmp is installed (detected once)
+local has_blink = pcall(require, "blink.cmp")
+
+-- Suppress blink-cmp via its buffer-local variable (safe in expr mappings)
+local function suppress_blink()
+	if has_blink then
+		vim.b.completion = false
+	end
+end
+
+-- Re-enable blink-cmp
+local function release_blink()
+	if has_blink and vim.b.completion == false then
+		vim.b.completion = nil
+	end
+end
+
+-- Close any visible native completion menus. Must run via vim.schedule (not safe in expr mappings).
+local function dismiss_native_completion()
+	if vim.fn.pumvisible() == 1 then
+		local keys = vim.api.nvim_replace_termcodes("<C-e>", true, false, true)
+		vim.api.nvim_feedkeys(keys, "n", false)
+	end
+	local ok_cmp, cmp = pcall(require, "cmp")
+	if ok_cmp and cmp.visible() then
+		cmp.abort()
+	end
+	local ok_blink, blink = pcall(require, "blink.cmp")
+	if ok_blink and blink.is_visible and blink.is_visible() then
+		blink.cancel()
+	end
+end
+
 -- Accept key handler
 ---@return string
 local function on_accept()
@@ -58,6 +95,9 @@ local function on_accept()
 		if ui.has_cursor_prediction() then
 			awaiting_completion_after_jump = true
 		end
+		completing = true
+		suppress_blink()
+		vim.schedule(dismiss_native_completion)
 		daemon.send_event_immediate("accept")
 		return ""
 	else
@@ -77,6 +117,9 @@ local function on_partial_accept()
 		-- Suppress the immediate text change and cursor movement caused by partial accept
 		skip_next_text_changed = true
 		skip_next_cursor_moved = true
+		completing = true
+		suppress_blink()
+		vim.schedule(dismiss_native_completion)
 		daemon.send_event_immediate("partial_accept")
 		return ""
 	else
@@ -153,6 +196,10 @@ local function setup_autocommands()
 			-- Skip exactly one text change immediately following a completion accept
 			if skip_next_text_changed then
 				skip_next_text_changed = false
+				vim.schedule(function()
+					completing = false
+					release_blink()
+				end)
 				return
 			end
 
@@ -316,6 +363,12 @@ end
 ---@return boolean accepted
 function events.accept()
 	return on_accept() == ""
+end
+
+---Check if cursortab is mid-completion (for other plugins to suppress their menus).
+---@return boolean
+function events.is_completing()
+	return completing
 end
 
 return events

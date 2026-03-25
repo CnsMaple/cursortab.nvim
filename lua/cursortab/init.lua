@@ -24,6 +24,12 @@ function M.accept()
 	return events.accept()
 end
 
+---Check if cursortab is mid-completion (for other plugins to suppress their menus).
+---@return boolean
+function M.is_completing()
+	return events.is_completing()
+end
+
 ---RPC callback: called when completion is ready
 ---@param diff_result DiffResult Completion diff result from Go daemon
 function M.on_completion_ready(diff_result)
@@ -161,10 +167,42 @@ function M.setup(user_config)
 	-- Setup events and autocommands
 	events.setup()
 
+	-- Patch completion plugins after all plugins have loaded
+	vim.schedule(function()
+		M._patch_completion_plugins()
+	end)
+
 	-- Start the daemon (non-blocking)
 	vim.defer_fn(function()
 		daemon.force_start()
 	end, 0)
+end
+
+-- Wrap a completion plugin's enabled function to return false while cursortab is completing
+---@param original any
+---@return function
+local function wrap_enabled(original)
+	return function()
+		if events.is_completing() then
+			return false
+		end
+		if type(original) == "function" then
+			return original()
+		end
+		if original == nil then
+			return true
+		end
+		return original
+	end
+end
+
+-- Patch nvim-cmp to suppress during cursortab completion
+function M._patch_completion_plugins()
+	local ok_cmp, cmp = pcall(require, "cmp")
+	if ok_cmp and cmp.get_config then
+		local cmp_config = cmp.get_config()
+		cmp.setup({ enabled = wrap_enabled(cmp_config.enabled) })
+	end
 end
 
 return M
