@@ -127,31 +127,43 @@ func TestSetFileContext_WithAllValues(t *testing.T) {
 	buf := New(Config{NsID: 1})
 	prev := []string{"prev 1", "prev 2"}
 	orig := []string{"orig 1", "orig 2"}
+	disk := []string{"disk 1", "disk 2"}
 	diffs := []*types.DiffEntry{{Original: "a", Updated: "b"}}
 
-	buf.SetFileContext(prev, orig, diffs)
+	buf.SetFileContext(FileContext{
+		PreviousLines: prev,
+		OriginalLines: orig,
+		DiskLines:     disk,
+		DiffHistories: diffs,
+	})
 
 	assert.Equal(t, 2, len(buf.previousLines), "previousLines set")
 	assert.Equal(t, 2, len(buf.originalLines), "originalLines set")
+	assert.Equal(t, 2, len(buf.diskLines), "diskLines set")
+	assert.Equal(t, "disk 1", buf.diskLines[0], "diskLines content")
 	assert.Equal(t, 1, len(buf.diffHistories), "diffHistories set")
 }
 
-func TestSetFileContext_NilPrevWithOrig(t *testing.T) {
+func TestSetFileContext_NewFile(t *testing.T) {
 	buf := New(Config{NsID: 1})
-	orig := []string{"orig 1", "orig 2"}
+	lines := []string{"line 1", "line 2"}
 
-	// When prev is nil but orig is provided, previousLines should be set to orig
-	buf.SetFileContext(nil, orig, nil)
+	buf.SetFileContext(FileContext{
+		PreviousLines: lines,
+		OriginalLines: lines,
+		DiskLines:     lines,
+	})
 
-	assert.Equal(t, 2, len(buf.previousLines), "previousLines set from orig")
-	assert.Equal(t, "orig 1", buf.previousLines[0], "previousLines matches orig")
+	assert.Equal(t, 2, len(buf.previousLines), "previousLines set")
+	assert.Equal(t, "line 1", buf.previousLines[0], "previousLines content")
+	assert.Equal(t, 2, len(buf.diskLines), "diskLines set")
 }
 
-func TestSetFileContext_AllNil(t *testing.T) {
+func TestSetFileContext_Empty(t *testing.T) {
 	buf := New(Config{NsID: 1})
 	buf.previousLines = []string{"should be cleared"}
 
-	buf.SetFileContext(nil, nil, nil)
+	buf.SetFileContext(FileContext{})
 
 	assert.True(t, buf.previousLines == nil, "previousLines should be nil")
 	assert.Equal(t, 0, len(buf.diffHistories), "diffHistories empty")

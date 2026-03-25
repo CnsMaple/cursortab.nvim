@@ -30,7 +30,8 @@ type NvimBuffer struct {
 	diffHistories []*types.DiffEntry // Structured diff history for provider consumption
 	previousLines []string           // Buffer content before the most recent edit (for sweep provider)
 
-	originalLines    []string // Original file content when editing session started
+	originalLines    []string // Checkpoint for extracting granular diffs (reset on each commit)
+	diskLines        []string // File content as last written to disk (reset only on ClearDiffHistory)
 	lastModifiedLine int      // Track which line was last modified
 	id               nvim.Buffer
 	scrollOffsetX    int // Horizontal scroll offset (leftcol)
@@ -97,6 +98,8 @@ func (b *NvimBuffer) PreviousLines() []string { return b.previousLines }
 
 func (b *NvimBuffer) OriginalLines() []string { return b.originalLines }
 
+func (b *NvimBuffer) DiskLines() []string { return b.diskLines }
+
 func (b *NvimBuffer) DiffHistories() []*types.DiffEntry { return b.diffHistories }
 
 // ClearDiffHistory resets the diff history and checkpoint to current state.
@@ -105,16 +108,17 @@ func (b *NvimBuffer) ClearDiffHistory() {
 	b.diffHistories = []*types.DiffEntry{}
 	b.originalLines = make([]string, len(b.lines))
 	copy(b.originalLines, b.lines)
+	b.diskLines = make([]string, len(b.lines))
+	copy(b.diskLines, b.lines)
 }
 
-// IsModified returns true if the buffer content differs from the originalLines
-// checkpoint (set on save or initial open).
+// IsModified returns true if the buffer content differs from what's on disk.
 func (b *NvimBuffer) IsModified() bool {
-	if len(b.lines) != len(b.originalLines) {
+	if len(b.lines) != len(b.diskLines) {
 		return true
 	}
 	for i := range b.lines {
-		if b.lines[i] != b.originalLines[i] {
+		if b.lines[i] != b.diskLines[i] {
 			return true
 		}
 	}
@@ -137,33 +141,35 @@ func (b *NvimBuffer) SkipHistory() bool {
 	return false
 }
 
-// SetFileContext restores file-specific state when switching back to a previously edited file.
-// This is called by the engine after detecting a file switch.
-func (b *NvimBuffer) SetFileContext(previousLines, originalLines []string, diffHistories []*types.DiffEntry) {
-	if previousLines != nil {
-		b.previousLines = make([]string, len(previousLines))
-		copy(b.previousLines, previousLines)
-	} else if originalLines != nil {
-		// For new files without previous state, initialize previousLines to the original
-		// file content. This ensures providers (like sweep) have a valid "before" state
-		// to compare against, rather than falling back to current content.
-		b.previousLines = make([]string, len(originalLines))
-		copy(b.previousLines, originalLines)
-	} else {
-		b.previousLines = nil
-	}
+// FileContext holds the state to restore when switching to a file.
+type FileContext struct {
+	PreviousLines []string
+	OriginalLines []string
+	DiskLines     []string
+	DiffHistories []*types.DiffEntry
+}
 
-	if diffHistories != nil {
-		b.diffHistories = make([]*types.DiffEntry, len(diffHistories))
-		copy(b.diffHistories, diffHistories)
+// SetFileContext restores file-specific state when switching to a file.
+func (b *NvimBuffer) SetFileContext(ctx FileContext) {
+	b.previousLines = copySlice(ctx.PreviousLines)
+	b.originalLines = copySlice(ctx.OriginalLines)
+	b.diskLines = copySlice(ctx.DiskLines)
+
+	if ctx.DiffHistories != nil {
+		b.diffHistories = make([]*types.DiffEntry, len(ctx.DiffHistories))
+		copy(b.diffHistories, ctx.DiffHistories)
 	} else {
 		b.diffHistories = []*types.DiffEntry{}
 	}
+}
 
-	if originalLines != nil {
-		b.originalLines = make([]string, len(originalLines))
-		copy(b.originalLines, originalLines)
+func copySlice(s []string) []string {
+	if s == nil {
+		return nil
 	}
+	out := make([]string, len(s))
+	copy(out, s)
+	return out
 }
 
 // Sync reads current state from the editor

@@ -121,12 +121,18 @@ func (b *mockBuffer) DiffHistories() []*types.DiffEntry {
 	return b.diffHistories
 }
 
-func (b *mockBuffer) SetFileContext(prev, orig []string, diffs []*types.DiffEntry) {
+func (b *mockBuffer) DiskLines() []string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.previousLines = prev
-	b.originalLines = orig
-	b.diffHistories = diffs
+	return nil
+}
+
+func (b *mockBuffer) SetFileContext(ctx buffer.FileContext) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.previousLines = ctx.PreviousLines
+	b.originalLines = ctx.OriginalLines
+	b.diffHistories = ctx.DiffHistories
 }
 
 func (b *mockBuffer) HasChanges(startLine, endLineInc int, lines []string) bool {

@@ -24,7 +24,8 @@ type Buffer interface {
 	PreviousLines() []string
 	OriginalLines() []string
 	DiffHistories() []*types.DiffEntry
-	SetFileContext(prev, orig []string, diffs []*types.DiffEntry)
+	DiskLines() []string
+	SetFileContext(ctx buffer.FileContext)
 	HasChanges(startLine, endLineInc int, lines []string) bool
 	PrepareCompletion(startLine, endLineInc int, lines []string, groups []*text.Group) buffer.Batch
 	CommitPending()
@@ -258,7 +259,8 @@ type CursorPredictionConfig struct {
 type FileState struct {
 	PreviousLines []string           // Content before user started editing this file
 	DiffHistories []*types.DiffEntry // Cumulative diffs for this file
-	OriginalLines []string           // Snapshot when editing session began
+	OriginalLines []string           // Checkpoint for granular diffs (resets on CommitUserEdits)
+	DiskLines     []string           // File content as last written to disk (resets only on save)
 	LastAccessNs  int64              // Monotonic timestamp for LRU eviction
 	Version       int                // Buffer version when last active
 	FirstLines    []string           // First 30 lines for FileChunks context

@@ -28,6 +28,7 @@ func (e *Engine) newFileStateFromBuffer() *FileState {
 		PreviousLines: copyLines(e.buffer.PreviousLines()),
 		DiffHistories: copyDiffs(e.buffer.DiffHistories()),
 		OriginalLines: copyLines(e.buffer.OriginalLines()),
+		DiskLines:     copyLines(e.buffer.DiskLines()),
 		LastAccessNs:  e.clock.Now().UnixNano(),
 		Version:       e.buffer.Version(),
 	}
@@ -61,14 +62,24 @@ func (e *Engine) handleFileSwitch(oldPath, newPath string, currentLines []string
 
 	if state, exists := e.fileStateStore[newPath]; exists {
 		if e.isFileStateValid(state, currentLines) {
-			e.buffer.SetFileContext(state.PreviousLines, state.OriginalLines, state.DiffHistories)
+			e.buffer.SetFileContext(buffer.FileContext{
+				PreviousLines: state.PreviousLines,
+				OriginalLines: state.OriginalLines,
+				DiskLines:     state.DiskLines,
+				DiffHistories: state.DiffHistories,
+			})
 			state.LastAccessNs = e.clock.Now().UnixNano()
 			return true
 		}
 		delete(e.fileStateStore, newPath)
 	}
 
-	e.buffer.SetFileContext(nil, copyLines(currentLines), nil)
+	lines := copyLines(currentLines)
+	e.buffer.SetFileContext(buffer.FileContext{
+		PreviousLines: lines,
+		OriginalLines: copyLines(currentLines),
+		DiskLines:     copyLines(currentLines),
+	})
 	return false
 }
 
