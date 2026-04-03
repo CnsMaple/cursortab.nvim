@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 
 	"cursortab/text"
 	"cursortab/types"
@@ -58,6 +59,17 @@ func (e *Engine) requestStreamingCompletion(provider LineStreamProvider, req *ty
 		),
 		ProviderContext: providerCtx,
 		Request:         req,
+	}
+
+	// Inject prefill lines through the normal streaming pipeline so the stage
+	// builder, accumulated text, and validation all see a complete line sequence
+	// starting from the top of the window.
+	if pc, ok := providerCtx.(PrefillContext); ok {
+		if prefill := pc.GetPrefill(); prefill != "" {
+			for _, line := range strings.Split(strings.TrimSuffix(prefill, "\n"), "\n") {
+				e.handleStreamLine(line)
+			}
+		}
 	}
 
 	// Set stream channel directly - event loop will select on it

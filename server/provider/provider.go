@@ -45,11 +45,12 @@ type DiffHistoryBuilder func(history []*types.FileDiffHistory) string
 type Context struct {
 	Request      *types.CompletionRequest
 	TrimmedLines []string
-	WindowStart  int // 0-indexed
-	WindowEnd    int // 0-indexed, exclusive
-	CursorLine   int // 0-indexed within trimmed lines
-	MaxLines     int // for streaming limit (0 = no limit)
-	EndLineInc   int // 1-indexed inclusive end line, set by AnchorTruncation (0 = not set)
+	WindowStart  int    // 0-indexed
+	WindowEnd    int    // 0-indexed, exclusive
+	CursorLine   int    // 0-indexed within trimmed lines
+	MaxLines     int    // for streaming limit (0 = no limit)
+	EndLineInc   int    // 1-indexed inclusive end line, set by AnchorTruncation (0 = not set)
+	Prefill      string // prompt suffix prepended to result before postprocessors
 	Result       *openai.StreamResult
 
 	// Streaming state
@@ -72,6 +73,12 @@ func (c *Context) GetWindowStart() int {
 // Implements engine.TrimmedContext interface.
 func (c *Context) GetTrimmedLines() []string {
 	return c.TrimmedLines
+}
+
+// GetPrefill returns the prompt prefill text.
+// Implements engine.PrefillContext interface.
+func (c *Context) GetPrefill() string {
+	return c.Prefill
 }
 
 // GetStreamOldLines returns custom old lines for streaming diff.
@@ -146,6 +153,9 @@ func (p *Provider) GetCompletion(ctx context.Context, req *types.CompletionReque
 		result.FinishReason = resp.Choices[0].FinishReason
 	}
 	pctx.Result = result
+	if pctx.Prefill != "" {
+		pctx.Result.Text = pctx.Prefill + pctx.Result.Text
+	}
 	p.logResponse(result)
 
 	for _, post := range p.Postprocessors {

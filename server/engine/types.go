@@ -155,6 +155,13 @@ type TrimmedContext interface {
 	GetTrimmedLines() []string // Lines sent to the model (nil if no trimming)
 }
 
+// PrefillContext provides the prompt prefill that was sent as part of the prompt.
+// The engine pre-feeds these lines into the stage builder so streaming lines
+// align correctly with old lines.
+type PrefillContext interface {
+	GetPrefill() string
+}
+
 // StreamContext provides custom old lines and line transforms for streaming.
 // Used by FIM providers where streamed lines are partial (middle-fill) and need
 // transformation before diffing. When implemented, the engine uses these old lines
