@@ -243,7 +243,7 @@ Zeta, Copilot, and Mercury API.
 | ------------ | :----: | :--------: | :--------: | :---------------: | :-------: | ---------------------- |
 | `inline`     |        |            |            |                   |           | Any base model         |
 | `fim`        |        |     ✓      |            |                   |     ✓     | Any FIM-capable        |
-| `sweep`      |        |     ✓      |     ✓      |         ✓         |     ✓     | `sweep-next-edit-1.5b` |
+| `sweep`      |        |     ✓      |     ✓      |         ✓         |     ✓     | Sweep Next-Edit family |
 | `sweepapi`   |   ✓    |     ✓      |     ✓      |         ✓         |     ✓     | `sweep-next-edit-7b`   |
 | `zeta`       |        |     ✓      |     ✓      |         ✓         |     ✓     | `zeta`                 |
 | `copilot`    |   ✓    |     ✓      |     ✓      |         ✓         |           | GitHub Copilot         |
@@ -342,14 +342,23 @@ llama-server \
 <details>
 <summary>Details</summary>
 
-Sweep Next-Edit 1.5B model for fast, accurate next-edit predictions. Sends full
-file for small files, trimmed around cursor for large files.
+Sweep Next-Edit models for fast, accurate next-edit predictions. Sends full file
+for small files, trimmed around cursor for large files.
+
+**Available Models**:
+
+- [`sweep-next-edit-v2-7B`](https://huggingface.co/sweepai/sweep-next-edit-v2-7B)
+  — 8B params, highest quality
+- [`sweep-next-edit-1.5B`](https://huggingface.co/sweepai/sweep-next-edit-1.5B)
+  — 1B params, fast and accurate
+- [`sweep-next-edit-0.5B`](https://huggingface.co/sweepai/sweep-next-edit-0.5B)
+  — 0.5B params, lightweight
 
 **Requirements:**
 
 - vLLM or compatible inference server
-- Sweep Next-Edit model downloaded from
-  [Hugging Face](https://huggingface.co/sweepai/sweep-next-edit-1.5b)
+- A Sweep Next-Edit model from
+  [Hugging Face](https://huggingface.co/sweepai/models)
 
 **Example Configuration:**
 
