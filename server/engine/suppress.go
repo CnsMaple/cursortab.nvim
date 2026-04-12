@@ -75,6 +75,31 @@ func (e *Engine) suppressForNoEdits() bool {
 	return !e.buffer.IsModified()
 }
 
+// suppressForDisabledScope returns the matched scope name if the cursor is
+// inside a treesitter scope listed in DisabledIn, or "" if not suppressed.
+func (e *Engine) suppressForDisabledScope() string {
+	if len(e.config.DisabledIn) == 0 {
+		return ""
+	}
+
+	scopes := e.buffer.CursorScopes()
+	if len(scopes) == 0 {
+		return ""
+	}
+
+	disabled := make(map[string]bool, len(e.config.DisabledIn))
+	for _, s := range e.config.DisabledIn {
+		disabled[s] = true
+	}
+
+	for _, scope := range scopes {
+		if disabled[scope] {
+			return scope
+		}
+	}
+	return ""
+}
+
 func isDeletion(action types.UserActionType) bool {
 	return action == types.ActionDeleteChar || action == types.ActionDeleteSelection
 }

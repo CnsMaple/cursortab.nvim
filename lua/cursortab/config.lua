@@ -23,6 +23,7 @@
 ---@field text_change_debounce integer
 ---@field max_visible_lines integer Max visible lines per completion (0 to disable)
 ---@field cursor_prediction CursortabCursorPredictionConfig
+---@field disabled_in string[] Tree-sitter scopes where completions are suppressed (e.g., "comment", "string")
 ---@field ignore_paths string[] Glob patterns for files to skip (gitignore-style)
 ---@field ignore_filetypes string[] Filetypes to skip completions
 ---@field ignore_gitignored boolean Skip files matched by .gitignore
@@ -107,6 +108,7 @@ local default_config = {
 			auto_advance = true, -- When completion has no changes, show cursor jump to last line
 			proximity_threshold = 2, -- Min lines apart to show cursor jump between completions (0 to disable)
 		},
+		disabled_in = {}, -- Tree-sitter scopes where completions are suppressed (e.g., "comment", "string")
 		enabled_modes = { "insert", "normal" }, -- Modes where completions are active
 		ignore_paths = { -- Glob patterns for files to skip completions
 			"*.min.js",
@@ -284,8 +286,8 @@ local function validate_config_keys(user_cfg, default_cfg, path)
 		if default_cfg[key] == nil then
 			error(string.format("[cursortab.nvim] Unknown config option: %s%s", path, key))
 		end
-		-- Recursively validate nested tables
-		if type(value) == "table" and type(default_cfg[key]) == "table" then
+		-- Recursively validate nested tables (skip lists with numeric keys)
+		if type(value) == "table" and type(default_cfg[key]) == "table" and next(value) ~= nil and type(next(value)) ~= "number" then
 			validate_config_keys(value, default_cfg[key], path .. key .. ".")
 		end
 	end

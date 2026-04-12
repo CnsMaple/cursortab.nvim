@@ -135,6 +135,7 @@ func NewDaemon(config Config) (*Daemon, error) {
 		},
 		MaxDiffTokens:          config.Provider.MaxDiffHistoryTokens,
 		MaxVisibleLines:        config.Behavior.MaxVisibleLines,
+		DisabledIn:             config.Behavior.DisabledIn,
 		CompleteInInsert:       config.Behavior.CompleteInInsert,
 		CompleteInNormal:       config.Behavior.CompleteInNormal,
 		EditCompletionProvider: editCompletionProvider,

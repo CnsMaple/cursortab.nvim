@@ -29,10 +29,11 @@ type Buffer interface {
 	HasChanges(startLine, endLineInc int, lines []string) bool
 	PrepareCompletion(startLine, endLineInc int, lines []string, groups []*text.Group) buffer.Batch
 	CommitPending()
-	CommitUserEdits() bool // Returns true if changes were committed
-	ClearDiffHistory()     // Reset diff history and checkpoint on save
-	IsModified() bool      // True if buffer content differs from the last-saved checkpoint
-	SkipHistory() bool     // True for files where diff history is not recorded
+	CommitUserEdits() bool  // Returns true if changes were committed
+	ClearDiffHistory()      // Reset diff history and checkpoint on save
+	IsModified() bool       // True if buffer content differs from the last-saved checkpoint
+	CursorScopes() []string // Treesitter node types from cursor to root
+	SkipHistory() bool      // True for files where diff history is not recorded
 	ShowCursorTarget(line int) error
 	ClearUI() error
 	MoveCursor(line int, center, mark bool) error
@@ -289,10 +290,11 @@ type EngineConfig struct {
 	IdleCompletionDelay    time.Duration
 	TextChangeDebounce     time.Duration
 	CursorPrediction       CursorPredictionConfig
-	MaxDiffTokens          int  // Maximum tokens for diff history per file (0 = no limit)
-	MaxVisibleLines        int  // Maximum lines per stage (0 = no limit)
-	CompleteInInsert       bool // Show completions in insert mode
-	CompleteInNormal       bool // Show completions in normal mode
-	EditCompletionProvider bool // True for edit-prediction providers (sweep, zeta, zeta-2, mercury, copilot NES)
-	DisableProviderMetrics bool // Skip wiring provider as metrics.Sender (eval harness sets this)
+	MaxDiffTokens          int      // Maximum tokens for diff history per file (0 = no limit)
+	MaxVisibleLines        int      // Maximum lines per stage (0 = no limit)
+	CompleteInInsert       bool     // Show completions in insert mode
+	CompleteInNormal       bool     // Show completions in normal mode
+	DisabledIn             []string // Treesitter scopes where completions are suppressed
+	EditCompletionProvider bool     // True for edit-prediction providers (sweep, zeta, zeta-2, mercury, copilot NES)
+	DisableProviderMetrics bool     // Skip wiring provider as metrics.Sender (eval harness sets this)
 }

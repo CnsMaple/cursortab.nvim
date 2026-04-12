@@ -41,6 +41,12 @@ func (e *Engine) requestCompletion(source types.CompletionSource) {
 		return
 	}
 
+	// Scope suppression: don't complete inside disabled treesitter scopes
+	if scope := e.suppressForDisabledScope(); !e.manuallyTriggered && scope != "" {
+		logger.Debug("suppressed: disabled treesitter scope %q", scope)
+		return
+	}
+
 	// Mid-line suppression applies to all sources for insertion-only providers
 	if !e.manuallyTriggered && e.suppressForMidLine() {
 		logger.Debug("suppressed: mid-line cursor position")

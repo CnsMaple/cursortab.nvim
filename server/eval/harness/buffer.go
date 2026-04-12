@@ -213,6 +213,9 @@ func (b *EvalBuffer) ClearDiffHistory() {}
 // IsModified implements engine.Buffer.
 func (b *EvalBuffer) IsModified() bool { return b.modified }
 
+// CursorScopes implements engine.Buffer.
+func (b *EvalBuffer) CursorScopes() []string { return nil }
+
 // SkipHistory implements engine.Buffer.
 func (b *EvalBuffer) SkipHistory() bool { return b.skipHistory }
 
