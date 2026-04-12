@@ -33,6 +33,8 @@ type CompletionRequest struct {
 	Version  int
 	// PreviousLines is the file content before the most recent edit
 	PreviousLines []string
+	// OriginalLines is the file content when first opened (checkpoint baseline)
+	OriginalLines []string
 	// Multi-file diff histories in the same workspace
 	FileDiffHistories []*FileDiffHistory
 	// Cursor position

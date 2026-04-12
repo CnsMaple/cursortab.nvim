@@ -80,6 +80,7 @@ func (e *Engine) EvalRequestCompletion(ctx context.Context, manualTrigger bool) 
 		Lines:                 e.buffer.Lines(),
 		Version:               e.buffer.Version(),
 		PreviousLines:         e.buffer.PreviousLines(),
+		OriginalLines:         e.buffer.OriginalLines(),
 		FileDiffHistories:     e.getAllFileDiffHistories(),
 		CursorRow:             e.buffer.Row(),
 		CursorCol:             e.buffer.Col(),
