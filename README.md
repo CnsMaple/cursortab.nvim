@@ -9,11 +9,6 @@ A Neovim plugin that provides local edit completions and cursor predictions.
 > in your config to opt in. No code content or file paths are collected —
 > [see the schema](https://github.com/cursortab/api/blob/main/docs/community-data-schema.md).
 
-> [!WARNING]
->
-> **This is an early-stage project.** Expect bugs, incomplete features, and
-> breaking changes. Make sure to regularly update the plugin.
-
 <p align="center">
     <img src="assets/demo.gif" width="600">
 </p>
