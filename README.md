@@ -218,6 +218,8 @@ require("cursortab").setup({
       prefix = "<|fim_prefix|>",
       suffix = "<|fim_suffix|>",
       middle = "<|fim_middle|>",
+      repo_name = "",                     -- Optional: "<|repo_name|>" enables cross-file context (auto-detected for Qwen models)
+      file_sep = "",                      -- Optional: "<|file_sep|>" enables cross-file context (auto-detected for Qwen models)
     },
     privacy_mode = true,                  -- Don't send telemetry to provider
   },
@@ -278,13 +280,16 @@ Zeta-2, Zeta (legacy), Copilot, and Mercury API.
 | Context             | inline | fim | sweep | zeta-2 | zeta | sweepapi | copilot | mercuryapi |
 | ------------------- | :----: | :-: | :---: | :----: | :--: | :------: | :-----: | :--------: |
 | Buffer content      |   ✓    |  ✓  |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
-| Edit history        |        |     |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
+| Edit history        |        | ✓°  |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
 | Previous file state |        |     |   ✓   |        |      |    ✓     |         |            |
-| LSP diagnostics     |        |     |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
-| Treesitter context  |        |     |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
-| Git diff context    |        |     |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
-| Recent files        |        |     |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
+| LSP diagnostics     |        | ✓°  |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
+| Treesitter context  |        | ✓°  |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
+| Git diff context    |        | ✓°  |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
+| Recent files        |        | ✓°  |   ✓   |   ✓    |  ✓   |    ✓     |         |     ✓      |
 | User actions        |        |     |   ✓   |        |      |    ✓     |         |            |
+
+° FIM cross-file context requires repo-level tokens (`repo_name`, `file_sep`).
+Auto-detected for Qwen models; set manually for other models that support them.
 
 #### Benchmarks
 

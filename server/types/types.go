@@ -253,9 +253,11 @@ const (
 
 // FIMTokenConfig holds FIM (Fill-in-the-Middle) token configuration
 type FIMTokenConfig struct {
-	Prefix string // Token before the prefix content (e.g., "<|fim_prefix|>")
-	Suffix string // Token before the suffix content (e.g., "<|fim_suffix|>")
-	Middle string // Token before the middle/completion (e.g., "<|fim_middle|>")
+	Prefix   string // Token before the prefix content (e.g., "<|fim_prefix|>")
+	Suffix   string // Token before the suffix content (e.g., "<|fim_suffix|>")
+	Middle   string // Token before the middle/completion (e.g., "<|fim_middle|>")
+	RepoName string // Optional repo-level FIM token (e.g., "<|repo_name|>")
+	FileSep  string // Optional file separator token (e.g., "<|file_sep|>")
 }
 
 // ProviderConfig holds configuration for providers
