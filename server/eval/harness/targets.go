@@ -1,6 +1,10 @@
 package harness
 
-import "os"
+import (
+	"os"
+
+	mercuryclient "cursortab/client/mercuryapi"
+)
 
 // DefaultTargets returns the built-in target definitions. Targets that need
 // a URL read it from the CURSORTAB_EVAL_URL environment variable.
@@ -8,7 +12,7 @@ func DefaultTargets() map[string]Target {
 	url := os.Getenv("CURSORTAB_EVAL_URL")
 
 	return map[string]Target{
-		"mercuryapi": {Name: "mercuryapi", Type: "mercuryapi"},
+		"mercuryapi": {Name: "mercuryapi", Type: "mercuryapi", Model: mercuryclient.Model},
 		"copilot":    {Name: "copilot", Type: "copilot"},
 
 		"sweep-next-edit-0.5B": {Name: "sweep-next-edit-0.5B", Type: "sweep", Model: "sweep-next-edit-0.5B", URL: url},

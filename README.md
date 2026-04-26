@@ -270,7 +270,7 @@ The plugin supports seven AI provider backends: Inline, FIM, Sweep, Zeta-2, Zeta
 | `zeta-2`     |        |     ✓      |     ✓      |         ✓         |     ✓     | `zeta-2` (SeedCoder-8B) |
 | `zeta`       |        |     ✓      |     ✓      |         ✓         |     ✓     | `zeta` (Qwen2.5-Coder)  |
 | `copilot`    |   ✓    |     ✓      |     ✓      |         ✓         |           | GitHub Copilot          |
-| `mercuryapi` |   ✓    |     ✓      |     ✓      |         ✓         |           | `mercury-edit`          |
+| `mercuryapi` |   ✓    |     ✓      |     ✓      |         ✓         |           | `mercury-edit-2`        |
 
 **Context Per Provider:**
 
