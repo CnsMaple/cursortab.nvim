@@ -257,12 +257,13 @@ local function create_overlay_window(
 	---@type string[]
 	local content_lines = type(content) == "table" and content or { content }
 
-	-- Query parent window state once: topline, leftcol, textoff, cursor, cursorline
-	---@type {topline: integer, leftcol: integer, textoff: integer}
+	-- Query parent window state once: topline, leftcol, textoff, winrow, cursor, cursorline
+	---@type {topline: integer, leftcol: integer, textoff: integer, winrow: integer}
 	local wininfo = vim.fn.getwininfo(parent_win)[1]
 	local leftcol = wininfo.leftcol or 0
 	local first_visible_line = wininfo.topline
 	local textoff = wininfo.textoff or 0
+	local winrow = wininfo.winrow or 1
 	local cursor_line = vim.api.nvim_win_get_cursor(parent_win)[1] - 1
 	local cursorline_enabled = vim.api.nvim_get_option_value("cursorline", { win = parent_win })
 
@@ -304,8 +305,15 @@ local function create_overlay_window(
 		max_width = math.max(max_width, adjusted_min_width)
 	end
 
-	-- Convert absolute buffer line to window-relative line (buffer_line is 0-based)
-	local window_relative_line = buffer_line - (first_visible_line - 1)
+	-- Use screenpos so wrap, folds, and virtual lines from other plugins
+	-- (e.g. render-markdown.nvim) don't shift the overlay off the target line.
+	local sp = vim.fn.screenpos(parent_win, buffer_line + 1, 1)
+	local window_relative_line
+	if sp and sp.row and sp.row > 0 then
+		window_relative_line = sp.row - winrow
+	else
+		window_relative_line = buffer_line - (first_visible_line - 1)
+	end
 
 	-- Create floating window
 	local overlay_win = vim.api.nvim_open_win(overlay_buf, false, {
@@ -546,8 +554,17 @@ local function render_replace_chars(group, nvim_line, virt_line_offset, current_
 	local original_line_width = vim.fn.strdisplaywidth(old_content)
 
 	if content ~= "" then
-		local overlay_win, overlay_buf, bytes_trimmed =
-			create_overlay_window(current_win, nvim_line + virt_line_offset, 0, content, syntax_ft, nil, original_line_width, nil, ns_id)
+		local overlay_win, overlay_buf, bytes_trimmed = create_overlay_window(
+			current_win,
+			nvim_line + virt_line_offset,
+			0,
+			content,
+			syntax_ft,
+			nil,
+			original_line_width,
+			nil,
+			ns_id
+		)
 		table.insert(completion_windows, { win_id = overlay_win, buf_id = overlay_buf })
 
 		-- Highlight the changed portion
@@ -583,8 +600,8 @@ local function render_modification(group, nvim_line, virt_line_offset, current_w
 	local overlay_col = 0
 	if not use_stacked then
 		for i = 1, line_count do
-			local line_content =
-				vim.api.nvim_buf_get_lines(current_buf, nvim_line + i - 1, nvim_line + i, false)[1] or ""
+			local line_content = vim.api.nvim_buf_get_lines(current_buf, nvim_line + i - 1, nvim_line + i, false)[1]
+				or ""
 			local w = vim.fn.strdisplaywidth(line_content)
 			if w > max_old_width then
 				max_old_width = w
