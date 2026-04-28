@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -211,14 +212,8 @@ func (e *Engine) Stop() {
 		logger.Info("stopping engine...")
 
 		e.stopped = true
-		if e.currentCancel != nil {
-			e.currentCancel()
-			e.currentCancel = nil
-		}
-		if e.prefetchCancel != nil {
-			e.prefetchCancel()
-			e.prefetchCancel = nil
-		}
+		e.cancelCurrentRequest()
+		e.cancelPrefetch()
 		e.stopIdleTimer()
 		e.stopTextChangeTimer()
 		e.state = stateIdle
@@ -226,9 +221,6 @@ func (e *Engine) Stop() {
 		e.completions = nil
 		e.applyBatch = nil
 		e.stagedCompletion = nil
-		e.prefetchedCompletions = nil
-		e.prefetchedCursorTarget = nil
-		e.prefetchState = prefetchNone
 		e.completionOriginalLines = nil
 		// Cancel the main context BEFORE closing channels. In-flight
 		// goroutines (e.g. the prefetch sender at request.go:206) select on
@@ -249,43 +241,12 @@ func (e *Engine) Stop() {
 	})
 }
 
-// ClearOptions configures what to clear in clearState
-type ClearOptions struct {
-	CancelCurrent     bool
-	CancelPrefetch    bool
-	ClearStaged       bool
-	ClearCursorTarget bool
-	CallOnReject      bool
-}
-
-// clearState consolidates all state clearing into one method with configurable options
-func (e *Engine) clearState(opts ClearOptions) {
-	if opts.CancelCurrent && e.currentCancel != nil {
-		e.currentCancel()
-		e.currentCancel = nil
-	}
-	if opts.CancelPrefetch && e.prefetchCancel != nil {
-		e.prefetchCancel()
-		e.prefetchCancel = nil
-		e.prefetchState = prefetchNone
-		e.prefetchedCompletions = nil
-		e.prefetchedCursorTarget = nil
-	}
-	if opts.ClearCursorTarget {
-		e.cursorTarget = nil
-	}
-	if opts.CallOnReject {
-		e.buffer.ClearUI()
-		// Send reject metric if a completion was shown
-		if len(e.completions) > 0 {
-			e.sendMetric(metrics.EventRejected)
-		}
-	}
+// resetCompletionFields clears per-completion state. Used after accepting a
+// stage to prepare for the next one. Does not cancel requests, drop the staged
+// completion, or send metrics.
+func (e *Engine) resetCompletionFields() {
 	e.completions = nil
 	e.applyBatch = nil
-	if opts.ClearStaged {
-		e.stagedCompletion = nil
-	}
 	e.completionOriginalLines = nil
 	e.currentGroups = nil
 	e.manuallyTriggered = false
@@ -293,9 +254,27 @@ func (e *Engine) clearState(opts ClearOptions) {
 	e.contextResultCh = nil
 }
 
-// clearAll clears everything including prefetch and staged completions
-func (e *Engine) clearAll() {
-	e.clearState(ClearOptions{CancelCurrent: true, CancelPrefetch: true, ClearStaged: true, ClearCursorTarget: true, CallOnReject: true})
+func (e *Engine) cancelCurrentRequest() {
+	if e.currentCancel != nil {
+		e.currentCancel()
+		e.currentCancel = nil
+	}
+}
+
+func (e *Engine) cancelPrefetch() {
+	if e.prefetchCancel != nil {
+		e.prefetchCancel()
+		e.prefetchCancel = nil
+	}
+	e.clearPrefetchResult()
+}
+
+// clearPrefetchResult resets the in-memory prefetch result and state.
+// Does not cancel an in-flight prefetch (use cancelPrefetch for that).
+func (e *Engine) clearPrefetchResult() {
+	e.prefetchState = prefetchNone
+	e.prefetchedCompletions = nil
+	e.prefetchedCursorTarget = nil
 }
 
 // RegisterEventHandler registers the event handler for nvim RPC callbacks.
@@ -441,14 +420,14 @@ func (e *Engine) recordTextChangeAction() {
 	currentLines := e.buffer.Lines()
 
 	if e.lastBufferLines == nil {
-		e.lastBufferLines = copyLines(currentLines)
+		e.lastBufferLines = slices.Clone(currentLines)
 		return
 	}
 
 	// Classify the action based on diff
 	actionType := classifyEdit(e.lastBufferLines, currentLines)
 	if actionType == "" {
-		e.lastBufferLines = copyLines(currentLines)
+		e.lastBufferLines = slices.Clone(currentLines)
 		return
 	}
 
@@ -460,7 +439,7 @@ func (e *Engine) recordTextChangeAction() {
 		TimestampMs: e.clock.Now().UnixMilli(),
 	})
 
-	e.lastBufferLines = copyLines(currentLines)
+	e.lastBufferLines = slices.Clone(currentLines)
 }
 
 // recordCursorMovementAction records a cursor movement if position changed

@@ -35,6 +35,7 @@ import (
 	"cursortab/logger"
 	"cursortab/metrics"
 	"cursortab/types"
+	"cursortab/utils"
 )
 
 func (p *Provider) truncateContext(lines []string, cursorRow, cursorCol int) ([]string, int, int, int) {
@@ -63,6 +64,7 @@ func (p *Provider) truncateContext(lines []string, cursorRow, cursorCol int) ([]
 	}
 	cursorIdx := cursorRow - 1
 
+	// First, cap by line count: take a window of at most maxLines lines centred on the cursor.
 	effectiveMax := min(maxLines, len(lines))
 	halfWindow := effectiveMax / 2
 	startLine := max(0, cursorIdx-halfWindow)
@@ -70,80 +72,20 @@ func (p *Provider) truncateContext(lines []string, cursorRow, cursorCol int) ([]
 	if endLine == len(lines) {
 		startLine = max(0, endLine-effectiveMax)
 	}
-
 	result := lines[startLine:endLine]
 
+	// Then, if still over the byte budget, shrink the window further around the cursor.
 	totalBytes := 0
 	for _, line := range result {
 		totalBytes += len(line) + 1
 	}
-
 	if totalBytes > maxBytes {
-		result, startLine = p.trimByBytes(result, cursorIdx-startLine, startLine)
+		startInWin, endInWin := utils.BalancedWindowAroundCursor(result, cursorIdx-startLine, maxBytes)
+		result = result[startInWin : endInWin+1]
+		startLine += startInWin
 	}
 
-	newCursorRow := cursorRow - startLine
-	return result, newCursorRow, cursorCol, startLine
-}
-
-func (p *Provider) trimByBytes(lines []string, cursorIdxInWindow, baseOffset int) ([]string, int) {
-	maxBytes := p.limits.MaxInputBytes
-
-	if len(lines) == 0 {
-		return lines, baseOffset
-	}
-
-	if cursorIdxInWindow < 0 {
-		cursorIdxInWindow = 0
-	}
-	if cursorIdxInWindow >= len(lines) {
-		cursorIdxInWindow = len(lines) - 1
-	}
-
-	cursorLineBytes := len(lines[cursorIdxInWindow]) + 1
-	remainingBudget := maxBytes - cursorLineBytes
-	halfBudget := remainingBudget / 2
-
-	startIdx := cursorIdxInWindow
-	bytesBefore := 0
-	for startIdx > 0 && bytesBefore < halfBudget {
-		newBytes := len(lines[startIdx-1]) + 1
-		if bytesBefore+newBytes <= halfBudget {
-			startIdx--
-			bytesBefore += newBytes
-		} else {
-			break
-		}
-	}
-
-	unusedBefore := halfBudget - bytesBefore
-	budgetAfter := halfBudget + unusedBefore
-	endIdx := cursorIdxInWindow
-	bytesAfter := 0
-	for endIdx < len(lines)-1 && bytesAfter < budgetAfter {
-		newBytes := len(lines[endIdx+1]) + 1
-		if bytesAfter+newBytes <= budgetAfter {
-			endIdx++
-			bytesAfter += newBytes
-		} else {
-			break
-		}
-	}
-
-	unusedAfter := budgetAfter - bytesAfter
-	if unusedAfter > 0 {
-		for startIdx > 0 {
-			newBytes := len(lines[startIdx-1]) + 1
-			if bytesBefore+newBytes <= halfBudget+unusedAfter {
-				startIdx--
-				bytesBefore += newBytes
-			} else {
-				break
-			}
-		}
-	}
-
-	return lines[startIdx : endIdx+1], baseOffset + startIdx
+	return result, cursorRow - startLine, cursorCol, startLine
 }
 
 func (p *Provider) truncateDiffHistories(histories []*types.FileDiffHistory) []*types.FileDiffHistory {
@@ -285,7 +227,7 @@ func (c *streamContext) GetWindowStart() int { return c.trimOffset }
 func (c *streamContext) GetTrimmedLines() []string { return c.trimmedLines }
 
 // GetStreamingType implements engine.LineStreamProvider
-func (p *Provider) GetStreamingType() int { return engine.StreamingTypeLines }
+func (p *Provider) GetStreamingType() engine.StreamingType { return engine.StreamingTypeLines }
 
 // preparedRequest holds the result of buildRequest for use by both
 // PrepareLineStream and GetCompletion.

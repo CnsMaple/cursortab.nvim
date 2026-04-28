@@ -25,29 +25,6 @@ func TestReject(t *testing.T) {
 	assert.Greater(t, buf.clearUICalls, 0, "ClearUI should have been called")
 }
 
-func TestClearState_Options(t *testing.T) {
-	buf := newMockBuffer()
-	prov := newMockProvider()
-	clock := newMockClock()
-	eng := createTestEngine(buf, prov, clock)
-
-	eng.completions = []*types.Completion{{StartLine: 1, EndLineInc: 1, Lines: []string{"test"}}}
-	eng.stagedCompletion = &text.StagedCompletion{CurrentIdx: 0}
-	eng.cursorTarget = &types.CursorPredictionTarget{LineNumber: 5}
-
-	eng.clearState(ClearOptions{
-		ClearStaged:       false,
-		ClearCursorTarget: true,
-		CallOnReject:      true,
-	})
-
-	if eng.stagedCompletion == nil {
-		assert.NotNil(t, eng.stagedCompletion, "stagedCompletion should be preserved when ClearStaged=false")
-	}
-	assert.Nil(t, eng.cursorTarget, "cursorTarget should be cleared when ClearCursorTarget=true")
-	assert.Nil(t, eng.completions, "completions should always be cleared")
-}
-
 func TestPartialAccept_AppendChars_SingleWord(t *testing.T) {
 	buf := newMockBuffer()
 	buf.lines = []string{"func"}
@@ -72,7 +49,7 @@ func TestPartialAccept_AppendChars_SingleWord(t *testing.T) {
 		Lines:      []string{"function foo()"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, "tion ", buf.lastInsertedText, "inserted text")
 	assert.Equal(t, stateHasCompletion, eng.state, "state after partial accept")
@@ -102,7 +79,7 @@ func TestPartialAccept_AppendChars_Punctuation(t *testing.T) {
 		Lines:      []string{"foo.bar.baz"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, ".", buf.lastInsertedText, "inserted text at punctuation")
 	assert.Equal(t, stateHasCompletion, eng.state, "state after partial accept")
@@ -132,7 +109,7 @@ func TestPartialAccept_AppendChars_NoRemaining(t *testing.T) {
 		Lines:      []string{"hello!"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, "!", buf.lastInsertedText, "inserted text")
 	assert.Equal(t, stateIdle, eng.state, "state when nothing remaining")
@@ -159,7 +136,7 @@ func TestPartialAccept_MultiLine_FirstLine(t *testing.T) {
 		Lines:      []string{"new line 1", "new line 2", "new line 3"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, 1, buf.lastReplacedLine, "replaced line number")
 	assert.Equal(t, "new line 1", buf.lastReplacedContent, "replaced content")
@@ -190,7 +167,7 @@ func TestPartialAccept_MultiLine_LastLine(t *testing.T) {
 		Lines:      []string{"new line"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, "new line", buf.lastReplacedContent, "replaced content")
 	assert.Equal(t, stateIdle, eng.state, "state after accepting last line")
@@ -220,7 +197,7 @@ func TestPartialAccept_WithUserTyping(t *testing.T) {
 		Lines:      []string{"function foo()"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, "on ", buf.lastInsertedText, "inserted text after user typing")
 }
@@ -234,7 +211,7 @@ func TestPartialAccept_NoCompletions(t *testing.T) {
 	eng.state = stateHasCompletion
 	eng.completions = nil
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, stateHasCompletion, eng.state, "state unchanged when no completions")
 }
@@ -253,7 +230,7 @@ func TestPartialAccept_NoGroups(t *testing.T) {
 	}}
 	eng.currentGroups = nil
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, stateHasCompletion, eng.state, "state unchanged when no groups")
 }
@@ -281,7 +258,7 @@ func TestPartialAccept_AdditionGroup(t *testing.T) {
 		Lines:      []string{"    fmt.Println(\"hello\")"},
 	}}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.Equal(t, 1, buf.lastReplacedLine, "replaced line number")
 	assert.Equal(t, "func main() {", buf.lastReplacedContent, "replaced content")
@@ -337,7 +314,7 @@ func TestPartialAccept_AppendCharsWithAddition(t *testing.T) {
 
 	// When append_chars line is already complete, partial accept should
 	// transition to the next line (the addition), NOT finalize the stage
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	// After partial accept, the completion should now point to the addition line
 	assert.Equal(t, stateHasCompletion, eng.state, "should still be in HasCompletion")
@@ -424,7 +401,7 @@ func TestPartialAccept_StagedCompletion_UsesCurrentGroups(t *testing.T) {
 
 	// This is the key: partial accept should use currentGroups (addition),
 	// NOT the staged completion's groups (which have stale append_chars first)
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	// Verify the addition line was inserted
 	assert.Equal(t, 4, len(buf.lines), "buffer should have 4 lines after insert")
@@ -459,7 +436,7 @@ func TestPartialAccept_FinishSyncsBuffer_NonStaged(t *testing.T) {
 
 	initialSyncCalls := buf.syncCalls
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.True(t, buf.syncCalls > initialSyncCalls, "buffer should be synced after finish")
 	assert.Equal(t, stateIdle, eng.state, "should be idle after finish")
@@ -500,7 +477,7 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		eng.applyBatch = &mockBatch{}
 		eng.stagedCompletion = nil
 
-		eng.doAcceptCompletion(Event{Type: EventAccept})
+		eng.acceptCompletion()
 
 		assert.Equal(t, int(expectedCursorTarget), buf.showCursorTargetLine, "cursor target should be preserved after full accept")
 	})
@@ -536,20 +513,20 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		}
 		eng.stagedCompletion = nil
 
-		eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+		eng.partialAcceptCompletion()
 		assert.Equal(t, stateHasCompletion, eng.state, "should stay in HasCompletion after partial accept")
 		assert.Equal(t, 3, len(eng.completions[0].Lines), "remaining lines")
 		assert.Equal(t, 2, eng.completions[0].StartLine, "start line increments")
 
-		eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+		eng.partialAcceptCompletion()
 		assert.Equal(t, 2, len(eng.completions[0].Lines), "remaining lines")
 		assert.Equal(t, 3, eng.completions[0].StartLine, "start line increments")
 
-		eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+		eng.partialAcceptCompletion()
 		assert.Equal(t, 1, len(eng.completions[0].Lines), "remaining lines")
 		assert.Equal(t, 4, eng.completions[0].StartLine, "start line increments")
 
-		eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+		eng.partialAcceptCompletion()
 
 		assert.Equal(t, int(expectedCursorTarget), buf.showCursorTargetLine, "cursor target should be preserved through partial accepts")
 	})
@@ -585,13 +562,13 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		eng.stagedCompletion = nil
 
 		for i := 0; i < 3; i++ {
-			eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+			eng.partialAcceptCompletion()
 			if i < 2 {
 				assert.Equal(t, cursorTarget, eng.cursorTarget.LineNumber, "cursor target should be unchanged")
 			}
 		}
 
-		eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+		eng.partialAcceptCompletion()
 
 		assert.Equal(t, int(cursorTarget), buf.showCursorTargetLine, "final cursor target should be original value")
 	})
@@ -651,7 +628,7 @@ func TestPartialAccept_MultiLineCompletion_CursorTargetConsistency(t *testing.T)
 		eng.applyBatch = &mockBatch{}
 		eng.cursorTarget = stage1.CursorTarget
 
-		eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+		eng.partialAcceptCompletion()
 
 		assert.Equal(t, int32(3), eng.cursorTarget.LineNumber, "cursor target should be preserved from stage 1")
 	})
@@ -760,11 +737,11 @@ func TestPartialAccept_StagedOffset_PureAddition(t *testing.T) {
 	eng.currentGroups = text.CopyGroups(stage1.Groups)
 
 	// Partial accept all 3 addition lines
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 	assert.Equal(t, stateHasCompletion, eng.state, "should still have completion after 1st")
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 	assert.Equal(t, stateHasCompletion, eng.state, "should still have completion after 2nd")
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 	// This finalizes stage 1 and advances to stage 2
 
 	// Stage 1 was a pure insertion: 0 old lines → 3 new lines → offset = +3

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"cursortab/ctx"
 	"cursortab/logger"
@@ -153,12 +154,7 @@ func (e *Engine) requestPrefetch(source types.CompletionSource, overrideRow, ove
 		return
 	}
 
-	// Cancel existing prefetch if any
-	if e.prefetchCancel != nil {
-		e.prefetchCancel()
-		e.prefetchCancel = nil
-		e.prefetchState = prefetchNone
-	}
+	e.cancelPrefetch()
 
 	// Sync buffer to ensure latest context
 	e.syncBuffer()
@@ -170,9 +166,9 @@ func (e *Engine) requestPrefetch(source types.CompletionSource, overrideRow, ove
 	// Snapshot required values to avoid races with buffer mutation
 	lines := opts.Lines
 	if lines == nil {
-		lines = append([]string{}, e.buffer.Lines()...)
+		lines = slices.Clone(e.buffer.Lines())
 	}
-	previousLines := append([]string{}, e.buffer.PreviousLines()...)
+	previousLines := slices.Clone(e.buffer.PreviousLines())
 	version := e.buffer.Version()
 	filePath := e.buffer.Path()
 	viewportHeight := e.getViewportHeightConstraint()
@@ -298,11 +294,7 @@ func (e *Engine) tryShowPrefetchedCompletion() bool {
 	e.syncBuffer()
 
 	comp := e.prefetchedCompletions[0]
-
-	e.prefetchedCompletions = nil
-	e.prefetchedCursorTarget = nil
-	e.prefetchState = prefetchNone
-
+	e.clearPrefetchResult()
 	return e.processCompletion(comp)
 }
 
@@ -333,11 +325,7 @@ func (e *Engine) handleDeferredCursorTarget() {
 		e.syncBuffer()
 
 		comp := e.prefetchedCompletions[0]
-
-		// Clear prefetch state before processing
-		e.prefetchedCompletions = nil
-		e.prefetchedCursorTarget = nil
-		e.prefetchState = prefetchNone
+		e.clearPrefetchResult()
 
 		if e.processCompletion(comp) {
 			return
@@ -383,7 +371,7 @@ func (e *Engine) prefetchAtNMinusOne() {
 
 	// Build a synthetic buffer with the last stage's edit applied.
 	// This is what the buffer will look like after the user accepts.
-	lines := append([]string{}, e.buffer.Lines()...)
+	lines := slices.Clone(e.buffer.Lines())
 	start := stage.BufferStart - 1 // 0-indexed
 	end := stage.BufferEnd         // exclusive (BufferEnd is 1-indexed inclusive)
 	if start >= 0 && end <= len(lines) {

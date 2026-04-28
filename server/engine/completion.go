@@ -58,8 +58,7 @@ func (e *Engine) handleTextChangeImpl() {
 			return
 		}
 		// User typed everything - completion fully typed
-		e.clearAll()
-		e.state = stateIdle
+		e.reject()
 		e.startTextChangeTimer()
 		return
 	}
@@ -213,7 +212,9 @@ func (e *Engine) clearCompletionUIOnly() {
 	if len(e.completions) > 0 {
 		e.sendMetric(metrics.EventIgnored)
 	}
-	e.clearState(ClearOptions{CancelCurrent: true, CancelPrefetch: false, ClearStaged: true, CallOnReject: false})
+	e.cancelCurrentRequest()
+	e.stagedCompletion = nil
+	e.resetCompletionFields()
 	e.state = stateIdle
 	e.cursorTarget = nil
 }
@@ -342,7 +343,6 @@ func (e *Engine) processCompletion(completion *types.Completion) bool {
 		e.stagedCompletion = &text.StagedCompletion{
 			Stages:     stagingResult.Stages,
 			CurrentIdx: 0,
-			SourcePath: e.buffer.Path(),
 		}
 
 		if stagingResult.FirstNeedsNavigation {

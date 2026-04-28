@@ -300,7 +300,6 @@ func (e *Engine) handleStreamCompleteSimple() {
 	e.stagedCompletion = &text.StagedCompletion{
 		Stages:     stagingResult.Stages,
 		CurrentIdx: 0,
-		SourcePath: e.buffer.Path(),
 	}
 
 	// If we already rendered a stage during streaming, keep it as-is.
@@ -498,42 +497,32 @@ func (e *Engine) handleTokenStreamComplete() {
 	e.tokenStreamingState = nil
 	e.streamingCancel = nil
 
-	// If empty, go idle
-	if finalText == "" {
+	goIdle := func() {
 		e.buffer.ClearUI()
 		e.state = stateIdle
+	}
+
+	if finalText == "" {
+		goIdle()
 		return
 	}
 
-	// Run postprocessors through provider
 	tokenProvider, ok := e.provider.(TokenStreamProvider)
 	if !ok {
-		e.buffer.ClearUI()
-		e.state = stateIdle
+		goIdle()
 		return
 	}
 
 	resp, err := tokenProvider.FinishTokenStream(providerCtx, finalText)
-	if err != nil {
-		e.buffer.ClearUI()
-		e.state = stateIdle
-		return
-	}
-
-	// Process the response like a normal completion
-	if resp == nil || len(resp.Completions) == 0 {
-		e.buffer.ClearUI()
-		e.state = stateIdle
+	if err != nil || resp == nil || len(resp.Completions) == 0 {
+		goIdle()
 		return
 	}
 
 	// For inline provider, there's always just one completion
 	completion := resp.Completions[0]
-
-	// Validate completion is for current buffer state
 	if completion.StartLine < 1 || completion.StartLine > len(req.Lines) {
-		e.buffer.ClearUI()
-		e.state = stateIdle
+		goIdle()
 		return
 	}
 
@@ -541,7 +530,6 @@ func (e *Engine) handleTokenStreamComplete() {
 	if e.processCompletion(completion) {
 		e.state = stateHasCompletion
 	} else {
-		e.buffer.ClearUI()
-		e.state = stateIdle
+		goIdle()
 	}
 }

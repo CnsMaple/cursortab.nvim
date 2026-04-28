@@ -190,7 +190,7 @@ func TestTokenStreamingKeepPartial_TypingMatchesPartial(t *testing.T) {
 	eng.tokenStreamChan = make(chan string) // Non-nil to indicate active stream
 
 	// Trigger text change during streaming
-	eng.doRejectStreamingAndDebounce(Event{Type: EventTextChanged})
+	eng.doRejectStreamingAndDebounce()
 
 	// Should transition to HasCompletion state since typing matches
 	assert.Equal(t, stateHasCompletion, eng.state, "state after matching typing during streaming")
@@ -225,7 +225,7 @@ func TestTokenStreamingKeepPartial_TypingDoesNotMatch(t *testing.T) {
 	eng.tokenStreamChan = make(chan string)
 
 	// Trigger text change during streaming
-	eng.doRejectStreamingAndDebounce(Event{Type: EventTextChanged})
+	eng.doRejectStreamingAndDebounce()
 
 	// Should transition to Idle state since typing doesn't match
 	assert.Equal(t, stateIdle, eng.state, "state after mismatching typing during streaming")
@@ -260,7 +260,7 @@ func TestTokenStreamingKeepPartial_FullyTyped(t *testing.T) {
 	eng.tokenStreamChan = make(chan string)
 
 	// Trigger text change during streaming
-	eng.doRejectStreamingAndDebounce(Event{Type: EventTextChanged})
+	eng.doRejectStreamingAndDebounce()
 
 	// Should transition to Idle since fully typed
 	assert.Equal(t, stateIdle, eng.state, "state after fully typing completion during streaming")
@@ -279,7 +279,7 @@ func TestLineStreamingReject_NoKeepPartial(t *testing.T) {
 	eng.streamLinesChan = make(chan string)
 
 	// Trigger text change during streaming
-	eng.doRejectStreamingAndDebounce(Event{Type: EventTextChanged})
+	eng.doRejectStreamingAndDebounce()
 
 	// Should transition to Idle (line streaming doesn't keep partial)
 	assert.Equal(t, stateIdle, eng.state, "state after rejecting line streaming")
@@ -437,7 +437,7 @@ func TestStreamingAccept_FinalizedStageMismatch(t *testing.T) {
 	eng.cursorTarget = eng.stagedCompletion.Stages[0].CursorTarget
 
 	// Simulate accepting the rendered 4-line stage
-	eng.doAcceptCompletion(Event{Type: EventAccept})
+	eng.acceptCompletion()
 
 	// After accepting the 4-line rendered stage (replacing 1 line with 4),
 	// CumulativeOffset should be 4 - 1 = 3.

@@ -251,6 +251,17 @@ const (
 	ProviderTypeMercuryAPI ProviderType = "mercuryapi"
 )
 
+// IsEditCompletion reports whether the provider produces edit-style (multi-line,
+// region-replacing) completions, as opposed to inline/FIM single-point fills.
+func (p ProviderType) IsEditCompletion() bool {
+	switch p {
+	case ProviderTypeSweep, ProviderTypeSweepAPI, ProviderTypeZeta, ProviderTypeZeta2,
+		ProviderTypeCopilot, ProviderTypeMercuryAPI:
+		return true
+	}
+	return false
+}
+
 // FIMTokenConfig holds FIM (Fill-in-the-Middle) token configuration
 type FIMTokenConfig struct {
 	Prefix   string // Token before the prefix content (e.g., "<|fim_prefix|>")

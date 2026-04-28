@@ -8,15 +8,19 @@ import (
 	"cursortab/utils"
 )
 
-// reject clears all state and returns to idle.
+// reject clears all state and returns to idle. Cancels in-flight and
+// prefetch requests, drops staged completions, clears the UI, and sends a
+// reject metric if a completion was shown.
 func (e *Engine) reject() {
-	e.clearState(ClearOptions{
-		CancelCurrent:     true,
-		CancelPrefetch:    true,
-		ClearStaged:       true,
-		ClearCursorTarget: true,
-		CallOnReject:      true,
-	})
+	e.cancelCurrentRequest()
+	e.cancelPrefetch()
+	e.buffer.ClearUI()
+	if len(e.completions) > 0 {
+		e.sendMetric(metrics.EventRejected)
+	}
+	e.cursorTarget = nil
+	e.stagedCompletion = nil
+	e.resetCompletionFields()
 	e.state = stateIdle
 }
 
@@ -37,7 +41,7 @@ func (e *Engine) acceptCompletion() {
 	// 1. Apply and commit
 	if err := e.applyBatch.Execute(); err != nil {
 		logger.Error("acceptCompletion: batch execution failed: %v", err)
-		e.clearAll()
+		e.reject()
 		return
 	}
 	e.buffer.CommitPending()
@@ -62,8 +66,8 @@ func (e *Engine) acceptCompletion() {
 		}
 	}
 
-	// 2. Clear completion state (keep prefetch)
-	e.clearState(ClearOptions{})
+	// 2. Clear completion state (keep prefetch and staged)
+	e.resetCompletionFields()
 
 	// 3. Check if this is the last stage and prefetch extends beyond it
 	// Must try BEFORE advanceStagedCompletion which may clear the prefetch
@@ -178,26 +182,8 @@ func (e *Engine) advanceStagedCompletion() {
 	// Calculate cumulative offset from current stage
 	currentStage := e.getStage(e.stagedCompletion.CurrentIdx)
 	if currentStage != nil {
-		// A stage is a pure insertion only when all groups are additions,
-		// the stage targets a single old line, and the total group lines
-		// match the stage lines (no absorbed unchanged old lines).
-		isPureInsertion := currentStage.BufferStart == currentStage.BufferEnd && len(currentStage.Groups) > 0
-		if isPureInsertion {
-			groupLines := 0
-			for _, g := range currentStage.Groups {
-				if g.Type != "addition" {
-					isPureInsertion = false
-					break
-				}
-				groupLines += g.EndLine - g.StartLine + 1
-			}
-			if isPureInsertion && len(currentStage.Lines) != groupLines {
-				isPureInsertion = false
-			}
-		}
-
 		var oldLineCount int
-		if isPureInsertion {
+		if stageIsPureInsertion(currentStage) {
 			oldLineCount = 0
 		} else {
 			oldLineCount = currentStage.BufferEnd - currentStage.BufferStart + 1
@@ -219,8 +205,7 @@ func (e *Engine) advanceStagedCompletion() {
 			prefetch := e.prefetchedCompletions[0]
 			prefetchResultEnd := prefetch.StartLine + len(prefetch.Lines) - 1
 			if prefetch.StartLine <= currentStage.BufferEnd && prefetchResultEnd >= currentStage.BufferStart {
-				e.prefetchState = prefetchNone
-				e.prefetchedCompletions = nil
+				e.clearPrefetchResult()
 			}
 		}
 		e.stagedCompletion = nil
@@ -470,7 +455,7 @@ func (e *Engine) finalizePartialAccept() {
 
 	e.buffer.CommitPending()
 	e.saveCurrentFileState()
-	e.clearState(ClearOptions{})
+	e.resetCompletionFields()
 
 	if e.stagedCompletion != nil {
 		e.advanceStagedCompletion()

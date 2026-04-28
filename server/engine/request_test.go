@@ -30,7 +30,7 @@ func TestAcceptCompletion_TriggersPrefetch_ShouldRetrigger(t *testing.T) {
 		ShouldRetrigger: true,
 	}
 
-	eng.doAcceptCompletion(Event{Type: EventAccept})
+	eng.acceptCompletion()
 
 	assert.Equal(t, prefetchWaitingForCursorPrediction, eng.prefetchState, "prefetch should be waiting for cursor prediction after accept")
 }
@@ -139,7 +139,7 @@ func TestAcceptLastStage_UsesPrefetchForCursorPrediction(t *testing.T) {
 		Lines:      []string{"new 25"},
 	}}
 
-	eng.doAcceptCompletion(Event{Type: EventAccept})
+	eng.acceptCompletion()
 
 	assert.Equal(t, stateHasCursorTarget, eng.state, "should be HasCursorTarget showing prediction to line 25")
 	assert.Equal(t, 25, buf.showCursorTargetLine, "should show cursor target at line 25")
@@ -214,7 +214,7 @@ func TestAcceptLastStage_ClearsStalePrefetch_WhenOverlaps(t *testing.T) {
 		Lines:      []string{"new 15"},
 	}}
 
-	eng.doAcceptCompletion(Event{Type: EventAccept})
+	eng.acceptCompletion()
 
 	// Stale prefetch should be cleared because it overlaps with the applied stage.
 	// Then a new prefetch is requested (since ShouldRetrigger=true).
@@ -254,7 +254,7 @@ func TestPartialAccept_FinishTriggersPrefetch_ShouldRetrigger(t *testing.T) {
 
 	initialSyncCalls := buf.syncCalls
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.True(t, buf.syncCalls > initialSyncCalls, "buffer should be synced after finish")
 	assert.Equal(t, prefetchWaitingForCursorPrediction, eng.prefetchState, "prefetch should be waiting for cursor prediction")
@@ -315,7 +315,7 @@ func TestPartialAccept_FinishTriggersPrefetch_N1Stage(t *testing.T) {
 		},
 	}
 
-	eng.doPartialAcceptCompletion(Event{Type: EventPartialAccept})
+	eng.partialAcceptCompletion()
 
 	assert.NotNil(t, eng.stagedCompletion, "stagedCompletion should not be nil")
 	assert.Equal(t, 1, eng.stagedCompletion.CurrentIdx, "should be at stage 1")
@@ -519,7 +519,7 @@ func TestAcceptLastStage_UsesPrefetchWithAdditionalChanges(t *testing.T) {
 		},
 	}}
 
-	eng.doAcceptCompletion(Event{Type: EventAccept})
+	eng.acceptCompletion()
 
 	// Simulate buffer update
 	buf.lines[2] = "new line 3"
@@ -648,7 +648,7 @@ func TestAcceptLastStage_WaitsForInflightPrefetch(t *testing.T) {
 	// Prefetch is in-flight (not ready yet)
 	eng.prefetchState = prefetchInFlight
 
-	eng.doAcceptCompletion(Event{Type: EventAccept})
+	eng.acceptCompletion()
 
 	// Should wait for prefetch instead of triggering a new request
 	assert.Equal(t, prefetchWaitingForTab, eng.prefetchState, "should be waiting for prefetch")

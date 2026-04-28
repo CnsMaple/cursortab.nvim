@@ -106,14 +106,6 @@ func NewDaemon(config Config) (*Daemon, error) {
 		return nil, fmt.Errorf("unsupported provider type: %s", config.Provider.Type)
 	}
 
-	provType := types.ProviderType(config.Provider.Type)
-	editCompletionProvider := provType == types.ProviderTypeSweep ||
-		provType == types.ProviderTypeSweepAPI ||
-		provType == types.ProviderTypeZeta ||
-		provType == types.ProviderTypeZeta2 ||
-		provType == types.ProviderTypeCopilot ||
-		provType == types.ProviderTypeMercuryAPI
-
 	// Initialize dataset sender if user opted in to contribute data
 	var datasetSender metrics.Sender
 	if config.ContributeData {
@@ -140,7 +132,7 @@ func NewDaemon(config Config) (*Daemon, error) {
 		DisabledIn:             config.Behavior.DisabledIn,
 		CompleteInInsert:       config.Behavior.CompleteInInsert,
 		CompleteInNormal:       config.Behavior.CompleteInNormal,
-		EditCompletionProvider: editCompletionProvider,
+		EditCompletionProvider: types.ProviderType(config.Provider.Type).IsEditCompletion(),
 	}, engine.SystemClock, ctx.NewGatherer(buf), datasetSender)
 	if err != nil {
 		return nil, err
