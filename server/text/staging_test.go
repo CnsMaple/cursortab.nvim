@@ -126,6 +126,14 @@ func TestCreateStages_PureDeletionLastStage_CursorTargetLandsAtSurvivingLine(t *
 			newLines:   []string{"keep1", "keep2", "keep3"},
 			wantTarget: 3,
 		},
+		{
+			// bufferStart=2 would land past EOF after the deletion. Must clamp
+			// to the last surviving line in the completion's view (line 1).
+			name:       "deletion at end of completion view",
+			oldLines:   []string{"keep1", "delete1", "delete2"},
+			newLines:   []string{"keep1"},
+			wantTarget: 1,
+		},
 	}
 
 	for _, tt := range tests {
