@@ -113,9 +113,9 @@ func TestHandleFileSwitch_DropsInFlightWork(t *testing.T) {
 
 	assert.Equal(t, prefetchNone, eng.prefetchState, "prefetch state reset")
 	assert.Nil(t, eng.prefetchedCompletions, "prefetched completions cleared")
-	assert.True(t, eng.prefetchCancel == nil, "prefetch cancel func cleared")
-	assert.True(t, eng.currentCancel == nil, "current request cancel cleared")
-	assert.True(t, eng.streamingCancel == nil, "streaming cancel cleared")
+	assert.Nil(t, eng.prefetchCancel, "prefetch cancel func cleared")
+	assert.Nil(t, eng.currentCancel, "current request cancel cleared")
+	assert.Nil(t, eng.streamingCancel, "streaming cancel cleared")
 	assert.Nil(t, eng.streamingState, "streaming state cleared")
 	assert.Nil(t, eng.completions, "completions cleared")
 	assert.Nil(t, eng.stagedCompletion, "staged completion cleared")
