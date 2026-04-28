@@ -182,7 +182,6 @@ func NewEngine(provider Provider, buf Buffer, config EngineConfig, clock Clock, 
 	}
 	if e.metricSender != nil {
 		e.metricsCh = make(chan metrics.Event, 64)
-		go e.metricsWorker()
 	}
 
 	return e, nil
@@ -200,6 +199,9 @@ func (e *Engine) Start(ctx context.Context) {
 	e.mu.Unlock()
 
 	go e.eventLoop(e.mainCtx)
+	if e.metricSender != nil {
+		go e.metricsWorker(e.mainCtx)
+	}
 	logger.Info("engine started")
 }
 
@@ -222,19 +224,15 @@ func (e *Engine) Stop() {
 		e.applyBatch = nil
 		e.stagedCompletion = nil
 		e.completionOriginalLines = nil
-		// Cancel the main context BEFORE closing channels. In-flight
-		// goroutines (e.g. the prefetch sender at request.go:206) select on
-		// mainCtx.Done() vs eventChan <- …; if we closed the channel first
-		// they'd panic on a send-to-closed-channel. Canceling first gives
-		// them a chance to exit via the Done branch. We still close the
-		// channels afterward so the event loop's `<-eventChan` path and
-		// metricsWorker's `for range` exit cleanly.
+		// Cancel the main context to signal all in-flight goroutines and
+		// loops to exit. We deliberately do NOT close eventChan or metricsCh:
+		// senders use `select { case ch <- ...: case <-mainCtx.Done(): }` and
+		// closing the channel would race with that select (Go picks randomly
+		// between a closed-channel-send and a Done-channel-recv when both are
+		// ready). Letting the channels be GC'd avoids the panic class
+		// entirely; the eventLoop and metricsWorker exit on Done.
 		if e.mainCancel != nil {
 			e.mainCancel()
-		}
-		close(e.eventChan)
-		if e.metricsCh != nil {
-			close(e.metricsCh)
 		}
 
 		logger.Info("engine stopped")
@@ -778,8 +776,13 @@ func (e *Engine) captureSnapshot() *metrics.Snapshot {
 }
 
 // metricsWorker processes metrics events asynchronously.
-func (e *Engine) metricsWorker() {
-	for event := range e.metricsCh {
-		e.metricSender.SendMetric(e.mainCtx, event)
+func (e *Engine) metricsWorker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event := <-e.metricsCh:
+			e.metricSender.SendMetric(ctx, event)
+		}
 	}
 }
