@@ -1,0 +1,124 @@
+@startuml
+'================================================================
+' cursortab.nvim — engine state machine
+' Source: server/engine/events.go (transitions table)
+'         server/engine/types.go  (state, prefetchState enums)
+' Render with: plantuml -tsvg state-machine.puml
+'================================================================
+
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam defaultFontSize 11
+skinparam state {
+  BackgroundColor      #FFF7E6
+  BorderColor          #B8860B
+  ArrowColor           #555555
+  BackgroundColor<<bg>> #EAF4FF
+  BorderColor<<bg>>     #1F6FB2
+}
+
+title cursortab.nvim — Engine state machine
+
+'================================================================
+' Primary engine state machine
+'================================================================
+state "Idle" as Idle
+state "PendingCompletion" as Pending
+state "StreamingCompletion" as Streaming
+state "HasCompletion" as HasCompl
+state "HasCursorTarget" as HasCursor
+
+[*] --> Idle
+
+' Idle outgoing
+Idle --> Pending           : TextChangeTimeout /\nTrigger / IdleTimeout\n[requestCompletion]
+Idle --> Idle              : TextChanged\n[startTextChangeTimer]
+Idle --> Idle              : CursorMoved\n[resetIdleTimer]
+Idle --> Idle              : InsertEnter / InsertLeave\n[start/stopIdleTimer]
+Idle --> Idle              : FileSaved\n[clearDiffHistory]
+
+' PendingCompletion outgoing
+Pending --> HasCompl       : CompletionReady\n(non-streaming, has lines)
+Pending --> Streaming      : CompletionReady\n(streaming provider)
+Pending --> HasCursor      : CompletionReady\n(cursor target only)
+Pending --> Idle           : CompletionReady\n(empty response)
+Pending --> Idle           : CompletionError
+Pending --> Idle           : Esc / InsertLeave\n[reject]
+Pending --> Idle           : TextChanged\n[cancel + debounce]
+
+' Streaming outgoing
+Streaming --> HasCompl     : StreamComplete\n(remaining stages)
+Streaming --> HasCursor    : StreamComplete\n(cursor prediction)
+Streaming --> Idle         : StreamComplete (empty) /\nStreamError
+Streaming --> HasCompl     : Accept\n[acceptCompletion]
+Streaming --> Idle         : Esc\n[cancelStreaming + reject]
+Streaming --> HasCompl     : TextChanged\n(typing matches partial)
+Streaming --> Idle         : TextChanged\n(mismatch)
+Streaming --> Idle         : InsertLeave\n[cancel + idleTimer]
+
+' HasCompletion outgoing
+HasCompl --> Idle          : Accept\n[applyEdits]
+HasCompl --> HasCursor     : Accept\n(more stages → cursor target)
+HasCompl --> HasCompl      : PartialAccept\n[advance stage]
+HasCompl --> Idle          : Esc\n[reject]
+HasCompl --> HasCompl      : TextChanged\n(typing matches)
+HasCompl --> Idle          : TextChanged\n(mismatch)
+HasCompl --> Idle          : InsertLeave\n[reject + idleTimer]
+
+' HasCursorTarget outgoing
+HasCursor --> Idle         : Accept\n(no prefetch)
+HasCursor --> Pending      : Accept\n(retrigger)
+HasCursor --> HasCompl     : Accept\n(prefetch ready)
+HasCursor --> Idle         : Esc\n[reject]
+HasCursor --> Pending      : TextChanged\n[reject + debounce]
+HasCursor --> Idle         : InsertLeave\n[reject + idleTimer]
+
+note right of Streaming
+  CursorMoved in any state
+  resets the idle timer.
+  InsertLeave commits pending
+  user edits as a side effect.
+end note
+
+'================================================================
+' Prefetch sub-state machine (orthogonal to engine state)
+'================================================================
+state "Prefetch" as PrefBox <<bg>> {
+  state "prefetchNone" as PNone
+  state "prefetchInFlight" as PInFlight
+  state "prefetchWaitingForTab" as PWaitTab
+  state "prefetchWaitingForCursorPrediction" as PWaitCursor
+  state "prefetchReady" as PReady
+
+  [*] --> PNone
+
+  PNone        --> PInFlight     : startPrefetch\n(after first response)
+  PInFlight    --> PReady        : PrefetchReady
+  PInFlight    --> PWaitTab      : user has shown completion\n(wait for Tab)
+  PInFlight    --> PWaitCursor   : has cursor target\n(wait for cursor jump)
+  PWaitTab     --> PReady        : PrefetchReady
+  PWaitCursor  --> PReady        : PrefetchReady
+  PReady       --> PNone         : consumed by Accept
+  PInFlight    --> PNone         : PrefetchError /\nstate reset
+  PWaitTab     --> PNone         : PrefetchError /\nstate reset
+  PWaitCursor  --> PNone         : PrefetchError /\nstate reset
+}
+
+note bottom of PrefBox
+  prefetchState advances independently
+  of the main state. PrefetchReady is
+  consumed when the user accepts a
+  cursor target or completion stage,
+  fast-pathing the next response.
+end note
+
+legend right
+  | Color | Meaning |
+  |<#FFF7E6>| Engine state |
+  |<#EAF4FF>| Prefetch sub-state |
+  Transitions are labeled "Event\n[action]"
+  where action is the function called in
+  events.go's transition table.
+endlegend
+
+@enduml

@@ -1,0 +1,1499 @@
+@startuml
+'================================================================
+' cursortab.nvim — full architecture class diagram
+' Render with: plantuml -tsvg doc/architecture.puml
+'================================================================
+!pragma layout elk
+
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam packageStyle rectangle
+skinparam ArrowThickness 1
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 11
+skinparam class {
+    BackgroundColor<<lua>>      #FFF7E6
+    BorderColor<<lua>>          #B8860B
+    BackgroundColor<<go>>       #EAF4FF
+    BorderColor<<go>>           #1F6FB2
+    BackgroundColor<<iface>>    #F5E6FF
+    BorderColor<<iface>>        #6A1B9A
+    BackgroundColor<<provider>> #E8F8EE
+    BorderColor<<provider>>     #2E7D32
+    BackgroundColor<<dto>>      #F1F1F1
+    BorderColor<<dto>>          #555555
+    BackgroundColor<<eval>>     #FFE9EC
+    BorderColor<<eval>>         #B71C1C
+}
+
+title cursortab.nvim — Lua plugin + Go server class diagram
+
+'================================================================
+' Lua plugin
+'================================================================
+package "lua/cursortab (Neovim plugin)" as LuaPkg #FFFBE8 {
+
+  class "init" as L_Init <<lua>> {
+    + setup(user_config)
+    + toggle()
+    + accept() : boolean
+    + is_completing() : boolean
+    + on_completion_ready(diff)
+    + on_cursor_prediction_ready(line)
+    + on_reject()
+    + show_log()
+    + clear_log()
+    + status()
+    + restart()
+    - _patch_completion_plugins()
+  }
+
+  class "config" as L_Config <<lua>> {
+    - default_config : CursortabConfig
+    - current_config : CursortabConfig
+    - valid_provider_types
+    - valid_log_levels
+    - valid_addition_styles
+    + get() : CursortabConfig
+    + setup(user_config) : CursortabConfig
+    + setup_highlights()
+    - validate_config(cfg)
+    - validate_config_keys(user, default, path)
+    - migrate_deprecated_config(user)
+  }
+
+  class "CursortabConfig" as L_CTConfig <<lua>> {
+    + enabled : boolean
+    + log_level : string
+    + state_dir : string
+    + contribute_data : boolean
+    + keymaps : KeymapsConfig
+    + ui : UIConfig
+    + behavior : BehaviorConfig
+    + provider : ProviderConfig
+    + blink : BlinkConfig
+    + debug : DebugConfig
+  }
+
+  class "KeymapsConfig" as L_Keymaps <<lua>> {
+    + accept : string|false
+    + partial_accept : string|false
+    + trigger : string|false
+  }
+  class "UIConfig" as L_UIConf <<lua>> {
+    + completions.addition_style
+    + completions.fg_opacity
+    + jump.symbol
+    + jump.text
+    + jump.show_distance
+  }
+  class "BehaviorConfig" as L_Behav <<lua>> {
+    + idle_completion_delay
+    + text_change_debounce
+    + max_visible_lines
+    + cursor_prediction
+    + disabled_in
+    + ignore_paths
+    + ignore_filetypes
+    + ignore_gitignored
+    + enabled_modes
+  }
+  class "ProviderConfig" as L_ProvCfg <<lua>> {
+    + type : string
+    + url : string
+    + api_key_env : string
+    + model : string
+    + temperature : number
+    + context_size : integer
+    + max_tokens : integer
+    + top_k : integer
+    + completion_timeout : ms
+    + max_diff_history_tokens
+    + completion_path : string
+    + fim_tokens : FIMTokens
+    + privacy_mode : boolean
+  }
+  class "FIMTokens" as L_FIM <<lua>> {
+    + prefix : string
+    + suffix : string
+    + middle : string
+    + repo_name : string?
+    + file_sep : string?
+  }
+  class "BlinkConfig" as L_BlinkCfg <<lua>> {
+    + enabled : boolean
+    + ghost_text : boolean
+  }
+  class "DebugConfig" as L_DebugCfg <<lua>> {
+    + immediate_shutdown : boolean
+  }
+
+  class "buffer" as L_Buffer <<lua>> {
+    - buffer_state : BufferState
+    - gitignore_cache : map<string,bool>
+    - gitignore_exceptions
+    + update_state()
+    + should_skip() : boolean
+    + setup()
+    - match_ignore_pattern(path,pat)
+    - matches_ignore_paths(path,pats)
+    - is_ignored_filetype(ft,list)
+    - is_gitignored(path) : boolean
+  }
+
+  class "BufferState" as L_BufState <<lua>> {
+    + is_floating_window : boolean
+    + is_modifiable : boolean
+    + is_readonly : boolean
+    + filetype : string
+    + should_skip : boolean
+    + current_buf : integer
+    + current_win : integer
+  }
+
+  class "events" as L_Events <<lua>> {
+    - autocommands_setup_done : bool
+    - current_keymaps
+    - esc_handler_ns : integer?
+    - skip_next_text_changed : bool
+    - skip_next_cursor_moved : bool
+    - awaiting_completion_after_jump : bool
+    - text_changed_this_tick : bool
+    - completing : bool
+    - has_blink : bool
+    + setup()
+    + clear_all_completions()
+    + clear_awaiting_completion()
+    + accept() : boolean
+    + is_completing() : boolean
+    - on_accept() / on_partial_accept()
+    - on_escape() / on_trigger()
+    - update_keymap(name,key,handler,opts)
+    - setup_keymaps()
+    - suppress_blink() / release_blink()
+    - dismiss_native_completion()
+  }
+
+  class "daemon" as L_Daemon <<lua>> {
+    - chan : integer?
+    - ns_id : integer
+    - event_debounce_timer : integer?
+    - is_enabled : boolean
+    + send_event(name)
+    + send_event_immediate(name)
+    + send_reject()
+    + force_start() : boolean
+    + stop_daemon() : (bool,string)
+    + set_enabled(b)
+    + is_enabled() : boolean
+    + get_namespace_id() : integer
+    + check_daemon_status()
+    + get_channel_status()
+    - start_daemon() : boolean
+    - send_rpc_event(name)
+    - cleanup_stale_files()
+    - is_process_running(pid)
+    - read_daemon_pid(path)
+  }
+
+  class "ui" as L_UI <<lua>> {
+    - has_completion : bool
+    - has_cursor_prediction : bool
+    - completion_extmarks : ExtmarkInfo[]
+    - completion_windows : WindowInfo[]
+    - dimmed_ns_cache : map
+    - append_chars_state : AppendCharsState?
+    - expected_line : string?
+    - expected_line_num : integer?
+    - original_len : integer?
+    - append_chars_extmark_id : integer?
+    - append_chars_buf : integer?
+    - jump_text_extmark_id : integer?
+    - jump_text_buf : integer?
+    - absolute_jump_win/buf : integer?
+    + show_completion(diff)
+    + show_cursor_prediction(line)
+    + close_all() / ensure_close_all()
+    + has_completion() : bool
+    + has_cursor_prediction() : bool
+    + get_append_chars() : AppendCharsState?
+    + typing_matches_completion(line,content)
+    + update_ghost_text_for_typing(line,content)
+    + create_scratch_window(title,content,opts)
+    - create_overlay_window(...)
+    - render_append_chars(...)
+    - render_delete_chars(...)
+    - render_replace_chars(...)
+    - render_modification(...)
+    - render_addition(...)
+    - highlight_deletion(...)
+    - blend_color(fg,bg,factor)
+    - get_dimmed_ns(factor)
+  }
+
+  class "AppendCharsState" as L_Append <<lua>> {
+    + text : string
+    + line : integer
+    + col_start : integer
+  }
+  class "DiffResult" as L_DiffRes <<lua>> {
+    + groups : Group[]
+    + startLine : integer
+    + cursor_line : integer
+    + cursor_col : integer
+  }
+  class "Group" as L_Group <<lua>> {
+    + type : string
+    + start_line / end_line
+    + buffer_line
+    + lines / old_lines
+    + render_hint
+    + col_start / col_end
+  }
+
+  class "treesitter" as L_TS <<lua>> {
+    - scope_types
+    - import_types
+    + get_context(buf,row,col,max) : table?
+    + cursor_scopes(buf,row,col) : string[]
+  }
+
+  class "health" as L_Health <<lua>> {
+    + check()
+  }
+
+  class "blink" as L_Blink <<lua>> {
+    - empty_response
+    + new() : BlinkSource
+    + enabled() : boolean
+    + get_completions(ctx,cb)
+  }
+}
+
+' Lua internal relations
+L_Init           --> L_Config
+L_Init           --> L_Daemon
+L_Init           --> L_Events
+L_Init           --> L_UI
+
+L_Config         *--> L_CTConfig
+L_CTConfig       *-- L_Keymaps
+L_CTConfig       *-- L_UIConf
+L_CTConfig       *-- L_Behav
+L_CTConfig       *-- L_ProvCfg
+L_CTConfig       *-- L_BlinkCfg
+L_CTConfig       *-- L_DebugCfg
+L_ProvCfg        *-- L_FIM
+
+L_Buffer         *-- L_BufState
+L_Buffer         ..> L_Config
+
+L_Events         ..> L_Buffer
+L_Events         ..> L_Config
+L_Events         ..> L_Daemon
+L_Events         ..> L_UI
+
+L_Daemon         ..> L_Config
+L_Daemon         ..> L_Buffer
+
+L_UI             ..> L_Config
+L_UI             ..> L_Daemon
+L_UI             *-- L_Append
+L_UI             ..> L_DiffRes
+L_DiffRes        *-- L_Group
+
+L_Health         ..> L_Config
+L_Health         ..> L_Daemon
+
+L_Blink          ..> L_Config
+L_Blink          ..> L_Daemon
+L_Blink          ..> L_UI
+
+'================================================================
+' Go server — entry, daemon, client
+'================================================================
+package "server (main package)" as GoMain #EAF4FF {
+
+  class "main.Daemon" as G_Daemon <<go>> {
+    - config : Config
+    - provider : engine.Provider
+    - buffer : *buffer.NvimBuffer
+    - engine : *engine.Engine
+    - listener : net.Listener
+    - socketPath / pidPath : string
+    - clientCount : int64
+    - shutdown : chan bool
+    - ctx / cancel
+    + NewDaemon(cfg) : *Daemon
+    + Start() : error
+    + Stop()
+    - setupSocket()
+    - setupShutdownHandling()
+    - acceptConnections()
+    - handleConnection(conn)
+    - monitorIdleShutdown()
+    - cleanup()
+    - writePidFile() / removePidFile()
+  }
+
+  class "main.Client" as G_Client <<go>> {
+    - socketPath : string
+    + NewClient(stateDir) : *Client
+    + Connect() : error
+    + EnsureDaemonRunning(stateDir) : error
+    - startDaemon(stateDir)
+    - waitForDaemon(stateDir)
+  }
+
+  class "main.Config" as G_Config <<go>> {
+    + NsID : int
+    + LogLevel : string
+    + StateDir : string
+    + EditorVersion / EditorOS : string
+    + ContributeData : bool
+    + Behavior : BehaviorConfig
+    + Provider : ProviderConfig
+    + Debug : DebugConfig
+    + Validate() : error
+  }
+  class "main.BehaviorConfig" as G_Behav <<go>> {
+    + IdleCompletionDelay
+    + TextChangeDebounce
+    + MaxVisibleLines
+    + CursorPrediction : CursorPredictionConfig
+    + DisabledIn
+    + CompleteInInsert / CompleteInNormal
+  }
+  class "main.CursorPredictionConfig" as G_CPCfg <<go>> {
+    + Enabled : bool
+    + AutoAdvance : bool
+    + ProximityThreshold : int
+  }
+  class "main.ProviderConfig" as G_ProvCfg <<go>> {
+    + Type / URL / Model : string
+    + ApiKeyEnv : string
+    + Temperature / TopK : float/int
+    + ContextSize / MaxTokens
+    + CompletionTimeout
+    + MaxDiffHistoryTokens
+    + CompletionPath
+    + FIMTokens : FIMTokensConfig
+    + PrivacyMode : bool
+  }
+  class "main.FIMTokensConfig" as G_FIM <<go>> {
+    + Prefix / Suffix / Middle
+    + RepoName / FileSep
+  }
+  class "main.DebugConfig" as G_DebugCfg <<go>> {
+    + ImmediateShutdown : bool
+  }
+
+  class "deviceid" as G_DevID <<go>> {
+    + loadOrCreateDeviceID(stateDir) : string
+    - newUUID4() : string
+  }
+}
+
+G_Daemon         *-- G_Config
+G_Config         *-- G_Behav
+G_Behav          *-- G_CPCfg
+G_Config         *-- G_ProvCfg
+G_ProvCfg        *-- G_FIM
+G_Config         *-- G_DebugCfg
+G_Daemon         ..> G_DevID
+
+'================================================================
+' Engine package — orchestration & state machine
+'================================================================
+package "server/engine" as GoEngine #EAF4FF {
+
+  class "Engine" as E_Engine <<go>> {
+    + WorkspacePath / WorkspaceID : string
+    - provider : Provider
+    - buffer : Buffer
+    - clock : Clock
+    - ctx : context.Context
+    - mu : sync.RWMutex
+    - mainCtx / mainCancel
+    - stopped : bool
+    - stopOnce : sync.Once
+    - state : state
+    - prefetchState : prefetchState
+    - streamingState : *StreamingState
+    - tokenStreamingState : *TokenStreamingState
+    - currentCancel / prefetchCancel : CancelFunc
+    - idleTimer / textChangeTimer : Timer
+    - eventChan : chan Event
+    - completions : []*types.Completion
+    - applyBatch : buffer.Batch
+    - cursorTarget : *types.CursorPredictionTarget
+    - prefetchedCursorTarget : *types.CursorPredictionTarget
+    - stagedCompletion : *text.StagedCompletion
+    - completionOriginalLines : []string
+    - currentGroups : []*text.Group
+    - prefetchedCompletions : []*types.Completion
+    - streamingCancel : context.CancelFunc
+    - streamLinesChan : <-chan string
+    - streamLineNum : int
+    - acceptedDuringStreaming : bool
+    - tokenStreamChan : <-chan string
+    - contextGatherer : *ctx.Gatherer
+    - contextLimits : ContextLimits
+    - fileStateStore : map<string,*FileState>
+    - userActions : []*types.UserAction
+    - lastBufferLines : []string
+    - lastCursorOffset : int
+    - metricSender : metrics.Sender
+    - currentMetrics : metrics.CompletionInfo
+    - currentSnapshot : *metrics.Snapshot
+    - contextResultCh : chan *types.ContextResult
+    - metricsCh : chan metrics.Event
+    - lastCompletionSource : types.CompletionSource
+    - completionsSinceAccept : int
+    - pendingMetricsInfo : *types.MetricsInfo
+    - inInsertMode / manuallyTriggered : bool
+    - config : EngineConfig
+    + NewEngine(prov,buf,cfg,clock,gatherer,sender) : (*Engine,error)
+    + Start(ctx)
+    + Stop()
+    + RegisterEventHandler()
+    - syncBuffer()
+    - gatherContext()
+    - requestCompletion()
+    - requestStreamingCompletion()
+    - requestTokenStreamingCompletion()
+    - handleCompletionReadyImpl()
+    - handleTextChangeImpl()
+    - rejectAndRearmTimer()
+    - checkTypingMatchesPrediction()
+    - saveCurrentFileState() / handleFileSwitch()
+  }
+
+  interface "Buffer" as E_BufferIface <<iface>> {
+    + Sync()
+    + Lines() / PreviousLines() / OriginalLines() / DiskLines()
+    + Row() / Col()
+    + Path() / Version()
+    + ViewportBounds() / AvailableWidth()
+    + DiffHistories()
+    + SetFileContext(ctx)
+    + HasChanges() / IsModified() / SkipHistory()
+    + PrepareCompletion()
+    + CommitPending() / CommitUserEdits()
+    + ClearDiffHistory()
+    + CursorScopes()
+    + ShowCursorTarget() / ClearUI() / MoveCursor()
+    + InsertText() / ReplaceLine() / InsertLine()
+    + RegisterEventHandler()
+  }
+
+  interface "Provider" as E_ProvIface <<iface>> {
+    + GetCompletion(ctx,req) : (*types.CompletionResponse,error)
+    + GetContextLimits() : ContextLimits
+  }
+  interface "LineStreamProvider" as E_LineStream <<iface>> {
+    + GetStreamingType() : StreamingType
+    + PrepareLineStream(ctx,req) : (LineStream, any, error)
+    + ValidateFirstLine(providerCtx, firstLine) : error
+    + FinishLineStream(providerCtx, text, finishReason, stoppedEarly) : (*types.CompletionResponse, error)
+  }
+  interface "TokenStreamProvider" as E_TokStream <<iface>> {
+    + GetStreamingType() : StreamingType
+    + PrepareTokenStream(ctx,req) : (LineStream, any, error)
+    + FinishTokenStream(providerCtx, text) : (*types.CompletionResponse, error)
+  }
+  interface "LineStream" as E_LineStreamIface <<iface>> {
+    + LinesChan() : <-chan string
+    + Cancel()
+  }
+
+  interface "TrimmedContext" as E_Trim <<iface>> {
+    + GetWindowStart() : int
+    + GetTrimmedLines() : []string
+  }
+  interface "PrefillContext" as E_Prefill <<iface>> {
+    + GetPrefill() : string
+  }
+  interface "StreamContext" as E_StreamCtx <<iface>> {
+    + GetStreamOldLines() : []string
+    + GetStreamBaseOffset() : int
+    + TransformFirstLine(s) : string
+    + TransformLastLine(s) : string
+    + TransformLine(s) : string
+    + ShouldSkipLine() : bool
+  }
+
+  interface "Clock" as E_Clock <<iface>> {
+    + AfterFunc(d,f) : Timer
+    + Now() : time.Time
+  }
+  interface "Timer" as E_Timer <<iface>> {
+    + Stop() : bool
+  }
+  class "systemClock" as E_SysClock <<go>> {
+    + AfterFunc(d,f) : Timer
+    + Now() : time.Time
+  }
+
+  class "EngineConfig" as E_Cfg <<go>> {
+    + NsID : int
+    + ProviderName : string
+    + CompletionTimeout
+    + IdleCompletionDelay
+    + TextChangeDebounce
+    + CursorPrediction : CursorPredictionConfig
+    + MaxDiffTokens : int
+    + MaxVisibleLines : int
+    + CompleteInInsert / CompleteInNormal : bool
+    + DisabledIn : []string
+    + EditCompletionProvider : bool
+    + DisableProviderMetrics : bool
+  }
+  class "ContextLimits" as E_CtxLim <<go>> {
+    + MaxUserActions
+    + FileChunkLines
+    + MaxRecentSnapshots
+    + MaxDiffBytes
+    + MaxChangedSymbols
+    + MaxSiblings
+    + MaxInputLines
+    + MaxInputBytes
+    + WithDefaults() : ContextLimits
+  }
+
+  class "FileState" as E_FState <<go>> {
+    + PreviousLines : []string
+    + DiffHistories : []*types.DiffEntry
+    + OriginalLines : []string
+    + DiskLines : []string
+    + LastAccessNs : int64
+    + Version : int
+    + FirstLines : []string
+  }
+
+  class "StreamingState" as E_StreamState <<go>> {
+    + StageBuilder : *text.IncrementalStageBuilder
+    + PendingLine : string
+    + HasPendingLine : bool
+    + AccumulatedText : strings.Builder
+    + ProviderContext : any
+    + Validated : bool
+    + Request : *types.CompletionRequest
+    + FirstStageRendered : bool
+  }
+  class "TokenStreamingState" as E_TokState <<go>> {
+    + AccumulatedText : string
+    + ProviderContext : any
+    + Request : *types.CompletionRequest
+    + LinePrefix : string
+    + LineNum : int
+  }
+
+  enum "state" as E_StateEnum <<go>> {
+    stateIdle
+    statePendingCompletion
+    stateHasCompletion
+    stateHasCursorTarget
+    stateStreamingCompletion
+  }
+  enum "prefetchState" as E_PrefState <<go>> {
+    prefetchNone
+    prefetchInFlight
+    prefetchWaitingForTab
+    prefetchWaitingForCursorPrediction
+    prefetchReady
+  }
+  class "CursorPredictionConfig" as E_CPCfg <<go>> {
+    + Enabled : bool
+    + AutoAdvance : bool
+    + ProximityThreshold : int
+  }
+  enum "StreamingType" as E_StreamType <<go>> {
+    StreamingTypeNone
+    StreamingTypeLines
+    StreamingTypeTokens
+  }
+  enum "EventType" as E_EvtType <<go>> {
+    EventEsc / EventTextChanged
+    EventTextChangeTimeout
+    EventTrigger / EventCursorMoved
+    EventInsertEnter / EventInsertLeave
+    EventAccept / EventPartialAccept
+    EventFileSaved / EventIdleTimeout
+    EventCompletionReady / EventCompletionError
+    EventPrefetchReady / EventPrefetchError
+    EventStreamLine / EventStreamComplete / EventStreamError
+  }
+  class "Event" as E_Event <<go>> {
+    + Type : EventType
+    + Data : any
+  }
+  class "Transition" as E_Trans <<go>> {
+    + From : state
+    + Event : EventType
+    + Action : func(*Engine)
+  }
+}
+
+E_Engine          ..> E_BufferIface
+E_Engine          ..> E_ProvIface
+E_Engine          ..> E_Clock
+E_Engine          *-- E_Cfg
+E_Engine          *-- E_CtxLim
+E_Engine          o-- E_StreamState
+E_Engine          o-- E_TokState
+E_Engine          o-- "many" E_FState
+E_Engine          ..> E_StateEnum
+E_Engine          ..> E_PrefState
+E_Engine          ..> E_Event
+E_Cfg             *-- E_CPCfg
+
+E_Clock           <|.. E_SysClock
+E_LineStream      --|> E_ProvIface
+E_TokStream       --|> E_ProvIface
+E_LineStream      ..> E_LineStreamIface
+E_TokStream       ..> E_LineStreamIface
+
+'================================================================
+' Buffer package
+'================================================================
+package "server/buffer" as GoBuffer #EAF4FF {
+
+  class "NvimBuffer" as B_Nvim <<go>> {
+    - client : *nvim.Nvim
+    - lines : []string
+    - row / col : int
+    - path : string
+    - version : int
+    - diffHistories : []*types.DiffEntry
+    - previousLines / originalLines / diskLines : []string
+    - lastModifiedLine : int
+    - id : int
+    - viewportTop / viewportBottom : int
+    - availableWidth : int
+    - config : Config
+    - pending : *PendingEdit
+    + New(cfg) : *NvimBuffer
+    + SetClient(n)
+    + Sync(ws) : (*SyncResult,error)
+    + Lines() / Row() / Col() / Path() / Version()
+    + ViewportBounds() / AvailableWidth()
+    + PreviousLines() / OriginalLines() / DiskLines()
+    + DiffHistories() / ClearDiffHistory()
+    + IsModified() / SkipHistory()
+    + SetFileContext(FileContext)
+    + ShowCursorTarget() / ClearUI() / MoveCursor()
+    + InsertText() / ReplaceLine() / InsertLine()
+    + PrepareCompletion() / CommitPending() / CommitUserEdits()
+  }
+  class "buffer.Config" as B_Cfg <<go>> {
+    + NsID : int
+  }
+  class "PendingEdit" as B_Pend <<go>> {
+    + StartLine / EndLineInclusive : int
+    + Lines : []string
+  }
+  class "FileContext" as B_FCtx <<go>> {
+    + PreviousLines / OriginalLines / DiskLines
+    + DiffHistories : []*types.DiffEntry
+  }
+  class "SyncResult" as B_Sync <<go>> {
+    + BufferChanged : bool
+    + OldPath / NewPath : string
+  }
+  class "DiffHistory helpers" as B_DiffHist <<go>> {
+    + CollapseNetChanges(entries)
+    + Deduplicate(entries)
+    + DecayByAge(entries,now,maxAge)
+    + ProcessDiffHistory(entries,nowNs)
+    + MaxDiffEntries / ProximityLines
+    + PauseThreshold / IdleDecayDuration
+  }
+  interface "Batch" as B_Batch <<iface>> {
+    + Execute() : error
+  }
+}
+
+B_Nvim            *-- B_Cfg
+B_Nvim            *-- B_Pend
+B_Nvim            ..> B_FCtx
+B_Nvim            ..> B_Sync
+B_Nvim            ..> B_DiffHist
+
+E_BufferIface     <|.. B_Nvim
+
+'================================================================
+' Text package — diff / staging / streaming
+'================================================================
+package "server/text" as GoText #EAF4FF {
+
+  enum "ChangeType" as T_ChType <<go>> {
+    ChangeDeletion
+    ChangeAddition
+    ChangeModification
+    ChangeAppendChars
+    ChangeDeleteChars
+    ChangeReplaceChars
+  }
+  class "LineChange" as T_LineChange <<go>> {
+    + Type : ChangeType
+    + OldLineNum / NewLineNum : int
+    + Content / OldContent : string
+    + ColStart / ColEnd : int
+  }
+  class "LineMapping" as T_LineMap <<go>> {
+    + NewToOld : []int
+    + OldToNew : []int
+    + GetBufferLine(change,baseLineOffset) : int
+  }
+  class "DiffResult" as T_DiffRes <<go>> {
+    + Changes : []LineChange
+    + LineMapping : *LineMapping
+    + OldLineCount / NewLineCount : int
+    + ChangesMap() : map<int,LineChange>
+  }
+  class "Group" as T_Group <<go>> {
+    + Type : string
+    + StartLine / EndLine : int
+    + Lines / OldLines : []string
+    + BufferLine : int
+    + RenderHint : string
+    + ColStart / ColEnd : int
+  }
+  class "Stage" as T_Stage <<go>> {
+    + BufferStart / BufferEnd : int
+    + Lines : []string
+    + Changes : map<int,LineChange>
+    + Groups : []*Group
+    + CursorLine / CursorCol : int
+    + CursorTarget : *types.CursorPredictionTarget
+    + IsLastStage : bool
+  }
+  class "StagedCompletion" as T_Staged <<go>> {
+    + Stages : []*Stage
+    + CurrentIdx : int
+    + CumulativeOffset : int
+  }
+  class "StagingParams" as T_SParams <<go>> {
+    + Diff : *DiffResult
+    + CursorRow / CursorCol : int
+    + ViewportTop / ViewportBottom : int
+    + BaseLineOffset : int
+    + ProximityThreshold : int
+    + MaxLines / AvailableWidth : int
+    + FilePath : string
+    + NewLines / OldLines : []string
+  }
+  class "StagingResult" as T_SRes <<go>> {
+    + Stages : []*Stage
+    + FirstNeedsNavigation : bool
+  }
+  class "IncrementalDiffBuilder" as T_IncDiff <<go>> {
+    + OldLines / NewLines : []string
+    + Changes : []LineChange
+    + LineMapping : *LineMapping
+    + AddLine(line) : *LineChange
+  }
+  class "IncrementalStageBuilder" as T_IncStage <<go>> {
+    + OldLines : []string
+    + BaseLineOffset / ProximityThreshold / MaxVisibleLines
+    + ViewportTop / ViewportBottom
+    + CursorRow / CursorCol : int
+    + FilePath : string
+    + AvailableWidth : int
+    - diffBuilder : *IncrementalDiffBuilder
+    + AddLine(line) : *Stage
+    + Finalize() : *StagingResult
+  }
+  class "text utilities" as T_Utils <<go>> {
+    + SplitLines(text) : []string
+    + JoinLines(lines) : string
+    + FindNextWordBoundary(s) : int
+    + GroupChanges(changes) : []*Group
+    + CopyGroups(groups) : []*Group
+    + ToLuaFormat(stage,startLine) : LuaPayload
+    + ComputeDiff(old,new) : *DiffResult
+    + CreateStages(p) : *StagingResult
+    + LineSimilarity(a,b) : float64
+    + WordBoundaryChars / SimilarityThreshold
+  }
+}
+
+T_DiffRes        *-- T_LineChange
+T_DiffRes        *-- T_LineMap
+T_Stage          o-- "many" T_Group
+T_Stage          *-- T_LineChange
+T_Staged         *-- T_Stage
+T_IncStage       *-- T_IncDiff
+E_StreamState    ..> T_IncStage
+E_Engine         ..> T_Staged
+
+'================================================================
+' Types package — DTOs
+'================================================================
+package "server/types" as GoTypes #F1F1F1 {
+
+  class "Completion" as Y_Comp <<dto>> {
+    + StartLine : int
+    + EndLineInc : int
+    + Lines : []string
+  }
+  class "CompletionRequest" as Y_Req <<dto>> {
+    + Source : CompletionSource
+    + WorkspacePath / WorkspaceID
+    + FilePath : string
+    + Lines / PreviousLines / OriginalLines : []string
+    + Version : int
+    + FileDiffHistories : []*FileDiffHistory
+    + CursorRow / CursorCol : int
+    + ViewportHeight / MaxVisibleLines : int
+    + AdditionalContext : *ContextResult
+    + RecentBufferSnapshots : []*RecentBufferSnapshot
+    + UserActions : []*UserAction
+    + GetDiagnostics() / GetTreesitter() / GetGitDiff()
+  }
+  class "CompletionResponse" as Y_Resp <<dto>> {
+    + Completions : []*Completion
+    + CursorTarget : *CursorPredictionTarget
+    + MetricsInfo : *MetricsInfo
+  }
+  class "MetricsInfo" as Y_Mi <<dto>> {
+    + ID : string
+    + Additions / Deletions : int
+  }
+  enum "CompletionSource" as Y_CS <<dto>> {
+    CompletionSourceTyping
+    CompletionSourceIdle
+  }
+  class "CursorPredictionTarget" as Y_CT <<dto>> {
+    + RelativePath : string
+    + LineNumber : int32
+    + ExpectedContent : string
+    + ShouldRetrigger : bool
+  }
+  class "ContextResult" as Y_CR <<dto>> {
+    + Diagnostics : *Diagnostics
+    + Treesitter : *TreesitterContext
+    + GitDiff : *GitDiffContext
+  }
+  class "Diagnostics" as Y_Diag <<dto>> {
+    + FilePath : string
+    + Items : []*Diagnostic
+  }
+  class "Diagnostic" as Y_Diag1 <<dto>> {
+    + Message / Source : string
+    + Severity : DiagnosticSeverity
+    + Range : *CursorRange
+  }
+  enum "DiagnosticSeverity" as Y_DSev <<dto>> {
+    SeverityError
+    SeverityWarning
+    SeverityInformation
+    SeverityHint
+  }
+  class "TreesitterContext" as Y_TS <<dto>> {
+    + EnclosingSignature : string
+    + Siblings : []*TreesitterSymbol
+    + Imports : []string
+    + SyntaxRanges : []*LineRange
+  }
+  class "TreesitterSymbol" as Y_TSS <<dto>> {
+    + Name / Signature : string
+    + Line : int
+  }
+  class "GitDiffContext" as Y_GD <<dto>> {
+    + Diff : string
+  }
+  class "DiffEntry" as Y_DE <<dto>> {
+    + Original / Updated : []string
+    + Source : DiffSource
+    + TimestampNs : int64
+    + StartLine : int
+    + GetOriginal() / GetUpdated()
+  }
+  class "FileDiffHistory" as Y_FDH <<dto>> {
+    + FileName : string
+    + DiffHistory : []*DiffEntry
+  }
+  class "UserAction" as Y_UA <<dto>> {
+    + ActionType : UserActionType
+    + FilePath : string
+    + LineNumber / Offset : int
+    + TimestampMs : int64
+  }
+  class "RecentBufferSnapshot" as Y_RB <<dto>> {
+    + FilePath : string
+    + Lines : []string
+    + TimestampMs : int64
+  }
+  class "LineRange" as Y_LRange <<dto>> {
+    + StartLine / EndLine : int
+  }
+  class "CursorRange" as Y_CRange <<dto>> {
+    + StartLine / EndLine : int
+    + StartCharacter / EndCharacter : int
+  }
+  enum "ProviderType" as Y_PT <<dto>> {
+    ProviderTypeInline
+    ProviderTypeFIM
+    ProviderTypeSweep
+    ProviderTypeSweepAPI
+    ProviderTypeZeta
+    ProviderTypeZeta2
+    ProviderTypeCopilot
+    ProviderTypeMercuryAPI
+    --
+    + IsEditCompletion() : bool
+  }
+  enum "DiffSource" as Y_DSrc <<dto>> {
+    DiffSourceManual
+    DiffSourcePredicted
+  }
+  enum "UserActionType" as Y_UAT <<dto>> {
+    INSERT_CHAR
+    INSERT_SELECTION
+    DELETE_CHAR
+    DELETE_SELECTION
+    CURSOR_MOVEMENT
+  }
+  class "FIMTokenConfig" as Y_FIMC <<dto>> {
+    + Prefix / Suffix / Middle : string
+    + RepoName / FileSep : string
+  }
+  class "ProviderConfig" as Y_PCfg <<dto>> {
+    + ProviderURL / APIKey / ProviderModel : string
+    + CompletionPath / Version : string
+    + EditorVersion / EditorOS : string
+    + StateDir / DeviceID : string
+    + ProviderTemperature : float64
+    + ProviderContextSize / ProviderMaxTokens / ProviderTopK : int
+    + CompletionTimeout : int
+    + FIMTokens : FIMTokenConfig
+    + PrivacyMode : bool
+  }
+}
+
+Y_Req            *-- Y_CS
+Y_Req            o-- Y_CR
+Y_Req            o-- "*" Y_FDH
+Y_Req            o-- "*" Y_UA
+Y_Req            o-- "*" Y_RB
+Y_Resp           o-- "*" Y_Comp
+Y_Resp           o-- Y_CT
+Y_Resp           o-- Y_Mi
+Y_CR             o-- Y_Diag
+Y_Diag           o-- "*" Y_Diag1
+Y_Diag1          o-- Y_CRange
+Y_Diag1          *-- Y_DSev
+Y_CR             o-- Y_TS
+Y_TS             o-- "*" Y_TSS
+Y_TS             o-- "*" Y_LRange
+Y_CR             o-- Y_GD
+Y_FDH            o-- "*" Y_DE
+Y_DE             *-- Y_DSrc
+Y_UA             *-- Y_UAT
+Y_PCfg           *-- Y_FIMC
+
+E_ProvIface      ..> Y_Req
+E_ProvIface      ..> Y_Resp
+E_Engine         ..> Y_Req
+E_Engine         ..> Y_Resp
+E_Engine         ..> Y_UA
+E_Engine         ..> Y_RB
+
+'================================================================
+' Provider framework
+'================================================================
+package "server/provider" as GoProvider #E8F8EE {
+
+  class "Provider" as P_Prov <<provider>> {
+    + Name : string
+    + Config : *types.ProviderConfig
+    + Client : Client
+    + StreamingType : engine.StreamingType
+    + Preprocessors : []Preprocessor
+    + PromptBuilder : PromptBuilder
+    + Postprocessors : []Postprocessor
+    + Validators : []Validator
+    + StopTokens : []string
+    + DiffBuilder : DiffHistoryBuilder
+    + ContextLimits : engine.ContextLimits
+    + GetCompletion(ctx,req) : (*types.CompletionResponse,error)
+    + GetStreamingType() : engine.StreamingType
+    + PrepareLineStream(ctx,req) : (engine.LineStream, any, error)
+    + PrepareTokenStream(ctx,req) : (engine.LineStream, any, error)
+    + ValidateFirstLine(providerCtx,firstLine) : error
+    + FinishLineStream(...) : (*types.CompletionResponse,error)
+    + FinishTokenStream(...) : (*types.CompletionResponse,error)
+    + BuildCompletion(ctx,startLine,endLineInc,lines) : (*CompletionResponse,bool)
+    + EmptyResponse() : *CompletionResponse
+    + GetContextLimits() : ContextLimits
+    + SetHTTPTransport(rt)
+  }
+
+  class "Context" as P_Ctx <<provider>> {
+    + Request : *types.CompletionRequest
+    + Result : *openai.StreamResult
+    + CompletionRequest : *openai.CompletionRequest
+    + TrimmedLines : []string
+    + WindowStart / WindowEnd : int
+    + CursorLine / MaxLines / EndLineInc : int
+    + Prefill : string
+    + StreamOldLines : []string
+    + StreamBaseOff : int
+    + FirstLinePfx / LastLineSfx : string
+    + CursorMarker : string
+    + EditableStart / EditableEnd : int
+    + CursorMarkerSeen : bool
+    + CursorMarkerLine / CursorMarkerCol : int
+    + LinesReceived : int
+    + SkipLine : bool
+    + GetWindowStart() / GetTrimmedLines()
+    + GetPrefill()
+    + GetStreamOldLines() / GetStreamBaseOffset()
+    + TransformFirstLine() / TransformLastLine() / TransformLine()
+    + ShouldSkipLine() : bool
+  }
+
+  interface "Client" as P_Client <<iface>> {
+    + DoCompletion(ctx,*openai.CompletionRequest) : (*openai.CompletionResponse,error)
+    + DoLineStream(ctx,req,maxLines,stopTokens) : *openai.LineStream
+    + DoTokenStream(ctx,req,maxChars,stopTokens) : *openai.LineStream
+  }
+  interface "HTTPTransportSetter" as P_HTTPT <<iface>> {
+    + SetHTTPTransport(rt)
+  }
+
+  class "Func types" as P_Funcs <<provider>> {
+    Validator : (p,ctx,firstLine) error
+    DiffHistoryBuilder : (history) string
+    Preprocessor : (p,ctx) error
+    PromptBuilder : (p,ctx) *openai.CompletionRequest
+    Postprocessor : (p,ctx) (*types.CompletionResponse, bool)
+  }
+
+  class "Built-in processors" as P_Procs <<provider>> {
+    + SkipIfTextAfterCursor()
+    + TrimContent() / RejectEmpty()
+    + StripRepetition() / RejectTruncated()
+    + DropLastLineIfTruncated()
+    + RejectLeadingNewlineWithSuffix()
+    + ValidateAnchorPosition()
+    + AnchorTruncation()
+    + ValidateFirstLineAnchor()
+  }
+  class "DiffHistoryOptions" as P_DHOpt <<provider>> {
+    + HeaderTemplate / Prefix / Suffix / Separator
+    + FormatDiffHistory(opts) : DiffHistoryBuilder
+    + FormatDiffHistoryOriginalUpdated(tpl) : DiffHistoryBuilder
+    + DiffEntryToUnifiedDiff(entry) : string
+  }
+}
+
+P_Prov           *-- P_Ctx
+P_Prov           *-- P_Client
+P_Prov           ..> P_Funcs
+P_Prov           ..> P_Procs
+P_Prov           ..> P_DHOpt
+
+E_ProvIface      <|.. P_Prov
+E_LineStream     <|.. P_Prov
+E_TokStream      <|.. P_Prov
+P_Ctx            ..|> E_Trim
+P_Ctx            ..|> E_Prefill
+P_Ctx            ..|> E_StreamCtx
+
+'================================================================
+' Concrete providers
+'================================================================
+package "server/provider/* (concrete)" as GoProvImpls #E8F8EE {
+  ' Providers that build the generic provider.Provider
+  class "inline.NewProvider" as PI_Inline <<provider>>
+  class "fim.NewProvider"    as PI_FIM    <<provider>>
+  class "sweep.NewProvider"  as PI_Sweep  <<provider>>
+  class "zeta.NewProvider"   as PI_Zeta   <<provider>>
+  class "zeta2.NewProvider"  as PI_Zeta2  <<provider>>
+
+  ' Standalone providers that implement engine.Provider directly
+  class "sweepapi.Provider"   as PI_SweepAPI <<provider>>
+  class "mercuryapi.Provider" as PI_Mercury  <<provider>>
+  class "copilot.Provider"    as PI_Copilot  <<provider>>
+}
+
+PI_Inline   ..> P_Prov : builds
+PI_FIM      ..> P_Prov : builds
+PI_Sweep    ..> P_Prov : builds
+PI_Zeta     ..> P_Prov : builds
+PI_Zeta2    ..> P_Prov : builds
+
+E_ProvIface  <|.. PI_SweepAPI
+E_ProvIface  <|.. PI_Mercury
+E_ProvIface  <|.. PI_Copilot
+E_LineStream <|.. PI_SweepAPI
+
+'================================================================
+' HTTP clients
+'================================================================
+package "server/client/openai" as GoOpenAI #EAF4FF {
+  class "openai.Client" as C_OpenAI <<go>> {
+    + URL / CompletionPath / APIKey : string
+    + HTTPClient : *http.Client
+    + NewClient(url,completionPath,apiKey)
+    + DoCompletion(ctx,req) : (*CompletionResponse,error)
+    + DoLineStream(ctx,req,maxLines,stopTokens) : *LineStream
+    + DoTokenStream(ctx,req,maxChars,stopTokens) : *LineStream
+    + SetHTTPTransport(rt)
+  }
+  class "openai.CompletionRequest" as C_OAReq <<dto>> {
+    + Model / Prompt / Temperature
+    + MaxTokens / TopK / Stop / N / Echo / Stream
+  }
+  class "openai.CompletionResponse" as C_OARes <<dto>> {
+    + ID / Object / Created / Model
+    + Choices : [{Index,Text,FinishReason}]
+    + Usage : {Prompt,Completion,Total}
+  }
+  class "openai.StreamChunk" as C_OASC <<dto>>
+  class "openai.StreamResult" as C_OASR <<dto>> {
+    + Text / FinishReason : string
+    + StoppedEarly : bool
+  }
+  class "openai.LineStream" as C_OALS <<go>> {
+    - lines : <-chan string
+    - done : <-chan StreamResult
+    - cancel : func()
+    + LinesChan() / DoneChan() / Cancel()
+  }
+}
+
+P_Client          <|.. C_OpenAI
+E_LineStreamIface <|.. C_OALS
+
+package "server/client/* (other)" as GoClients #EAF4FF {
+  class "client/mercuryapi.Client"  as C_Mercury  <<go>> {
+    + DoCompletion(ctx,*Request) : (*Response,error)
+    + SendFeedback(...)
+    + SetHTTPTransport(rt)
+  }
+  class "client/sweepapi.Client"    as C_SweepAPI <<go>> {
+    + DoCompletion(ctx,*AutocompleteRequest) : ([]*AutocompleteResponse,error)
+    + DoCompletionStream(...)
+    + TrackMetrics(...)
+  }
+  class "client/dataset.Client"     as C_Dataset  <<go>> {
+    + New(baseURL,version)
+    + SendEvent(ctx,*EventRequest) : error
+  }
+}
+PI_Mercury  ..> C_Mercury  : uses
+PI_SweepAPI ..> C_SweepAPI : uses
+
+'================================================================
+' Context gatherer
+'================================================================
+package "server/ctx" as GoCtx #EAF4FF {
+  class "Gatherer" as C_Gather <<go>> {
+    - sources : []source
+    + NewGatherer(buf) : *Gatherer
+    + Gather(ctx,req) : *types.ContextResult
+  }
+  interface "source" as C_Source <<iface>> {
+    + Gather(ctx,req) : *types.ContextResult
+  }
+  class "diagnostics" as C_Diag <<go>>
+  class "treesitter"  as C_TS   <<go>>
+  class "gitDiff"     as C_GD   <<go>>
+  class "SourceRequest" as C_SReq <<dto>> {
+    + FilePath : string
+    + CursorRow / CursorCol : int
+    + WorkspacePath : string
+    + MaxDiffBytes / MaxChangedSymbols / MaxSiblings : int
+  }
+}
+C_Gather o-- "many" C_Source
+C_Source <|.. C_Diag
+C_Source <|.. C_TS
+C_Source <|.. C_GD
+E_GathererIface <|.. C_Gather
+C_Gather ..> Y_CR
+C_Gather ..> C_SReq
+
+'================================================================
+' Cross-cutting: logger, metrics, utils, e2e
+'================================================================
+package "cross-cutting" as GoCross #EAF4FF {
+  class "logger.LimitedLogger" as X_Logger <<go>> {
+    - file : *os.File
+    - lineCount : int
+    - level : LogLevel
+    + NewLimitedLogger(...)
+    + Debug() / Info() / Warn() / Error() / Fatal()
+    + Write(p) : (int,error)
+    + Close()
+    .. package-level ..
+    + Trace(name) : func()
+    + SetLevel(LogLevel)
+    + ParseLogLevel(s) : LogLevel
+  }
+  enum "LogLevel" as X_LL <<go>> {
+    Trace / Debug / Info / Warn / Error
+  }
+  class "metrics.MultiSender" as X_Metrics <<go>> {
+    - senders : []Sender
+    + NewMultiSender(...)
+    + SendMetric(ctx,evt)
+  }
+  interface "metrics.Sender" as X_Sender <<iface>> {
+    + SendMetric(ctx,evt)
+  }
+  class "metrics.Snapshot" as X_Snap <<dto>> {
+    + FileExt / Language / PrefixLength / ...26 fields
+  }
+  class "metrics.CompletionInfo" as X_Mi <<dto>> {
+    + ID / Additions / Deletions / ShownAt
+  }
+  class "metrics.Event" as X_Evt <<dto>> {
+    + Type : EventType
+    + Info : CompletionInfo
+    + Snapshot : *Snapshot
+  }
+  enum "metrics.EventType" as X_EvtT <<go>> {
+    EventShown / EventAccepted
+    EventRejected / EventIgnored
+  }
+  class "utils" as X_Utils <<go>> {
+    + Abs(x) : int
+    + SnapToSyntaxBoundaries(...)
+    + BalancedWindowAroundCursor(...)
+    + TrimContentAroundCursor(...)
+    + EstimateCharsFromTokens(t) : int
+    + TrimDiffEntries(diffs,maxTokens)
+    + AvgCharsPerToken (const)
+  }
+  class "e2e (test render)" as X_E2E <<go>> {
+    + ParseStages(json)
+    + ParseHeader(comment)
+    + ParseExpect(...) : Expectations
+    + UnquoteLine / QuoteLine
+    + GroupInfo / StageInfo / LineHighlight / PreviewLine
+    + JSONInt() / JSONStr()
+    + TabSize (const)
+  }
+  class "assert (test helpers)" as X_Assert <<go>> {
+    + Equal/NotEqual/Nil/NotNil
+    + Len/Contains
+    + Greater/Less/GreaterOrEqual/LessOrEqual
+    + Error/NoError/True/False
+  }
+}
+
+X_Sender <|.. X_Metrics
+X_Evt    *-- X_Mi
+X_Evt    *-- X_Snap
+X_Evt    *-- X_EvtT
+E_Engine ..> X_Sender
+E_Engine ..> X_Metrics : creates MultiSender
+E_Engine ..> X_Logger
+P_Prov   ..> X_Logger
+P_Prov   ..> X_Utils
+
+'================================================================
+' Eval harness
+'================================================================
+package "server/eval" as GoEval #FFE9EC {
+
+  class "harness.Scenario" as V_Sc <<eval>> {
+    + Path / ID / Description : string
+    + Language / FilePath : string
+    + Targets : []Target
+    + Buffer : BufferState
+    + FIMRow / FIMCol : int
+    + History : []DiffEntryState
+    + Steps : []Step
+    + Expected : []string
+    + Cassettes : map<string,*Cassette>
+    + CursorPositions : [][2]int
+    + TargetNames() / TargetByName(name)
+  }
+  class "harness.BufferState" as V_BS <<eval>> {
+    + Lines : []string
+    + Row / Col : int
+    + ViewportTop / ViewportBottom : int
+    + Modified : bool
+    + SkipHistory : bool
+  }
+  class "harness.DiffEntryState" as V_DES <<eval>> {
+    + FileName : string
+    + Original / Updated : string
+  }
+  class "harness.Target" as V_Tgt <<eval>> {
+    + Name / Type / Model / URL : string
+  }
+  class "harness.Step" as V_Step <<eval>> {
+    + Action : StepAction
+    + Wait : time.Duration
+    + Manual : bool
+    + Comment : string
+  }
+  enum "harness.StepAction" as V_SA <<eval>> {
+    ActionRequestCompletion
+    ActionAccept
+    ActionReject
+    ActionWait
+  }
+  class "harness.Config" as V_Cfg <<eval>> {
+    + TargetFilter : []string
+    + Mode : Mode
+    + Transport : http.RoundTripper
+    + BaseConfig : *types.ProviderConfig
+    + StrictModelVersion : bool
+  }
+  enum "harness.Mode" as V_Mode <<eval>> {
+    ModeReplay
+    ModeRecord
+  }
+  class "harness.StepOutcome" as V_SO <<eval>> {
+    + Step : Step
+    + Shown / Suppressed : bool
+    + SuppressReason : string
+    + StageCount : int
+    + StagedLines : []string
+    + ProviderLatencyMs : int64
+    + Err : error
+  }
+  class "harness.TargetOutcome" as V_TO <<eval>> {
+    + Target : Target
+    + Steps : []StepOutcome
+    + FinalBuffer : []string
+    + Cassette : *Cassette
+    + TotalLatencyMs : int64
+    + RequestCount : int
+    + Error : error
+  }
+  class "harness.ScenarioOutcome" as V_ScO <<eval>> {
+    + Scenario : *Scenario
+    + Targets : []*TargetOutcome
+  }
+  class "cassette.Recorder" as V_Rec <<eval>> {
+    + Inner : http.RoundTripper
+    + AllowedHeaders / SensitiveHeaders / RecordHeaders
+    + RoundTrip(req) : (*Response,error)
+    + Cassette() : *Cassette
+    + Reset()
+  }
+  class "cassette.Replayer" as V_Rep <<eval>> {
+    + RoundTrip(req) : (*Response,error)
+  }
+  class "cassette.Cassette" as V_Ca <<eval>> {
+    + Meta : Meta
+    + Interactions : []Interaction
+    + TotalDurationMs() : int64
+  }
+  class "cassette.Meta" as V_Meta <<eval>> {
+    + Kind / Provider / ModelVersion : string
+    + SchemaVersion : int
+    + RecordedAt : time.Time
+    + Notes : string
+  }
+  class "cassette.Interaction" as V_Int <<eval>> {
+    + Request : RecordedRequest
+    + Response : RecordedResponse
+    + DurationMs : int64
+  }
+  class "cassette.RecordedRequest" as V_Req <<eval>> {
+    + Kind : string
+    + Interaction : int
+    + Method / URL : string
+    + Headers : map<string,string>
+    + BodyB64 : string
+  }
+  class "cassette.RecordedResponse" as V_Res <<eval>> {
+    + Kind : string
+    + Interaction : int
+    + Status : int
+    + Headers : map<string,string>
+    + BodyB64 : string
+    + DurationMs : int64
+  }
+  class "clock.FakeClock" as V_FC <<eval>> {
+    - now : time.Time
+    - timers : []*fakeTimer
+    + New(t)
+    + Now() : time.Time
+    + AfterFunc(d,f) : Timer
+    + Advance(d) / Set(t)
+  }
+}
+
+V_Sc       *-- V_BS
+V_Sc       o-- "*" V_DES
+V_Sc       o-- "*" V_Step
+V_Sc       o-- "*" V_Tgt
+V_Step     *-- V_SA
+V_Cfg      *-- V_Mode
+V_TO       *-- V_Tgt
+V_TO       o-- "*" V_SO
+V_TO       o-- V_Ca
+V_ScO      o-- V_Sc
+V_ScO      o-- "*" V_TO
+V_Ca       *-- V_Meta
+V_Ca       o-- "*" V_Int
+V_Int      *-- V_Req
+V_Int      *-- V_Res
+E_Clock    <|.. V_FC
+V_Rec      ..> V_Ca
+V_Rep      ..> V_Ca
+
+'================================================================
+' Cross-package wiring (high-level edges)
+'================================================================
+
+' RPC bridge — Lua talks to Go daemon over Neovim job RPC (stdio)
+L_Daemon -[#B71C1C,thickness=2]-> G_Daemon : "rpcnotify\\n(cursortab_event)"
+G_Daemon -[#B71C1C,thickness=2]-> L_Init   : "callback rpcnotify\\n(on_completion_ready,\\non_cursor_prediction_ready,\\non_reject)"
+
+' main wires concrete implementations
+G_Daemon ..> E_Engine     : owns
+G_Daemon ..> B_Nvim       : owns
+G_Daemon ..> P_Prov       : selects
+G_Daemon ..> C_Gather     : creates
+G_Daemon ..> C_Dataset    : dataset sender
+G_Client --> G_Daemon     : spawns / connects
+
+' Engine collaborators
+E_Engine *-- C_Gather     : context gatherer
+E_Engine ..> P_Prov       : provider chain
+E_Engine ..> B_Nvim       : buffer ops
+E_Engine ..> T_Staged     : staged completion
+
+' Provider stack uses openai client + processors
+P_Prov   ..> C_OpenAI     : default client
+P_Prov   ..> Y_Req
+P_Prov   ..> Y_Resp
+
+' Eval harness drives the engine with FakeClock + Recorder
+V_Cfg    ..> E_Engine     : runs against
+V_Cfg    ..> P_Prov       : builds via factory
+V_Rec    ..> P_Prov       : http transport
+V_Rep    ..> P_Prov       : http transport
+
+' Lua plugin sends request data eventually shaped into types.CompletionRequest server-side
+L_Events ..> L_Daemon
+L_Daemon ..> Y_Req        : via JSON over RPC
+L_UI     ..> Y_Resp       : renders staged diff
+
+legend right
+  | Color | Meaning |
+  |<#FFF7E6>| Lua module |
+  |<#EAF4FF>| Go package / class |
+  |<#F5E6FF>| Go interface |
+  |<#E8F8EE>| Provider abstraction |
+  |<#F1F1F1>| Plain DTO |
+  |<#FFE9EC>| Eval harness |
+  Solid arrow = composition / ownership
+  Dashed arrow = dependency / use
+  Triangle    = implements / extends
+  Red bold    = RPC over Neovim job (stdio JSON)
+endlegend
+
+@enduml
