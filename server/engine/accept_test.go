@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"cursortab/assert"
 	"cursortab/text"
 	"cursortab/types"
@@ -24,6 +25,37 @@ func TestReject(t *testing.T) {
 	assert.Nil(t, eng.completions, "completions after reject")
 	assert.Nil(t, eng.cursorTarget, "cursorTarget after reject")
 	assert.Greater(t, buf.clearUICalls, 0, "ClearUI should have been called")
+}
+
+// TestReject_DropsLeftoverStreamFromAcceptDuringStreaming verifies that reject
+// cancels any in-flight stream from a prior accept-during-streaming. Without
+// this, the leftover stream eventually completes and handleStreamCompleteSimple
+// sees acceptedDuringStreaming=true, which calls handleStreamCompleteAfterAccept
+// and resurrects a completion or cursor target the user just rejected.
+func TestReject_DropsLeftoverStreamFromAcceptDuringStreaming(t *testing.T) {
+	buf := newMockBuffer()
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng, cancel := createTestEngineWithContext(buf, prov, clock)
+	defer cancel()
+
+	streamCtx, streamCancel := context.WithCancel(context.Background())
+	eng.streamingState = &StreamingState{}
+	eng.streamingCancel = streamCancel
+	eng.acceptedDuringStreaming = true
+	eng.state = stateHasCompletion
+
+	eng.reject()
+
+	assert.Nil(t, eng.streamingState, "streamingState should be cleared")
+	assert.Nil(t, eng.streamingCancel, "streamingCancel should be cleared")
+	assert.False(t, eng.acceptedDuringStreaming, "acceptedDuringStreaming flag should be cleared")
+
+	select {
+	case <-streamCtx.Done():
+	default:
+		t.Errorf("stream context should be cancelled")
+	}
 }
 
 func TestAcceptCompletion_BatchExecuteError_ResetsToIdle(t *testing.T) {

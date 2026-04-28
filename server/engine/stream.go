@@ -126,6 +126,7 @@ func (e *Engine) cancelStreaming() {
 	}
 	e.streamingState = nil
 	e.tokenStreamingState = nil
+	e.acceptedDuringStreaming = false
 }
 
 // cancelTokenStreamingKeepPartial cancels token streaming but preserves the partial

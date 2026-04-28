@@ -8,12 +8,14 @@ import (
 	"cursortab/utils"
 )
 
-// reject clears all state and returns to idle. Cancels in-flight and
-// prefetch requests, drops staged completions, clears the UI, and sends a
-// reject metric if a completion was shown.
+// reject clears all state and returns to idle. Cancels in-flight, prefetch,
+// and any leftover stream from a prior accept-during-streaming, drops staged
+// completions, clears the UI, and sends a reject metric if a completion was
+// shown.
 func (e *Engine) reject() {
 	e.cancelCurrentRequest()
 	e.cancelPrefetch()
+	e.cancelStreaming()
 	e.buffer.ClearUI()
 	if len(e.completions) > 0 {
 		e.sendMetric(metrics.EventRejected)
