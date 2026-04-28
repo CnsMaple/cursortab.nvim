@@ -305,25 +305,37 @@ func computeStageRanges(b *stageBuilder, baseLineOffset int, diff *DiffResult) {
 		}
 	}
 
-	// For anchorless additions (OldLineNum=-1), derive the insertion
-	// point from the LineMapping using the change's NewLineNum.
-	if oldStart <= 0 && diff.LineMapping != nil {
+	// Anchorless additions (OldLineNum=-1): resolve each addition's insertion
+	// point by walking forward in NewToOld from its NewLineNum to the next
+	// mapped old line. The insertion belongs just before that old line; if
+	// no forward match exists, it goes past the end. Run unconditionally so
+	// mixed stages (anchorless addition combined with non-additions) extend
+	// the buffer range to include the insertion point — otherwise the
+	// untouched lines between the insertion point and the rest of the stage
+	// get duplicated when nvim_buf_set_lines applies the replacement.
+	if diff.LineMapping != nil {
 		for _, change := range b.rawChanges {
-			if change.NewLineNum > 0 && change.NewLineNum <= len(diff.LineMapping.NewToOld) {
-				// Walk forward from NewLineNum to find the next mapped old line
-				for i := change.NewLineNum - 1; i < len(diff.LineMapping.NewToOld); i++ {
-					if diff.LineMapping.NewToOld[i] > 0 {
-						pos := diff.LineMapping.NewToOld[i]
-						if oldStart <= 0 || pos < oldStart {
-							oldStart = pos
-						}
-						break
-					}
+			if change.Type != ChangeAddition || change.OldLineNum > 0 {
+				continue
+			}
+			if change.NewLineNum <= 0 {
+				continue
+			}
+			pos := -1
+			for i := change.NewLineNum - 1; i < len(diff.LineMapping.NewToOld); i++ {
+				if diff.LineMapping.NewToOld[i] > 0 {
+					pos = diff.LineMapping.NewToOld[i]
+					break
 				}
-				// If no forward match, insertion is past last old line
-				if oldStart <= 0 {
-					oldStart = len(diff.LineMapping.OldToNew) + 1
-				}
+			}
+			if pos < 0 {
+				pos = len(diff.LineMapping.OldToNew) + 1
+			}
+			if oldStart <= 0 || pos < oldStart {
+				oldStart = pos
+			}
+			if oldEnd > 0 && pos > oldEnd+1 {
+				oldEnd = pos - 1
 			}
 		}
 	}

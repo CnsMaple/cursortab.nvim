@@ -3131,3 +3131,95 @@ func TestIfElseSimplificationViewportSplit(t *testing.T) {
 	assert.True(t, firstStage.BufferEnd >= 79,
 		fmt.Sprintf("first stage BufferEnd should be >= 79 (got %d)", firstStage.BufferEnd))
 }
+
+// applyStage simulates nvim_buf_set_lines applying a stage's replacement to
+// the original buffer. Returns the resulting buffer.
+func applyStage(oldLines []string, stage *Stage) []string {
+	out := make([]string, 0, len(oldLines))
+	out = append(out, oldLines[:stage.BufferStart-1]...)
+	out = append(out, stage.Lines...)
+	if stage.BufferEnd < len(oldLines) {
+		out = append(out, oldLines[stage.BufferEnd:]...)
+	}
+	return out
+}
+
+// TestCreateStages_AnchorlessAdditionAboveModification verifies that an
+// anchorless addition (insertion at the top of the file) grouped with a
+// modification below produces a stage whose BufferStart..BufferEnd correctly
+// covers the insertion point. Without the fix, the mixed-branch range
+// computation only considers anchored additions; the resulting buffer range
+// fails to include the insertion point and applying the stage duplicates
+// every line between the insertion point and the modification.
+func TestCreateStages_AnchorlessAdditionAboveModification(t *testing.T) {
+	oldLines := []string{
+		"package main",
+		"import \"fmt\"",
+		"func hello() { print() }",
+	}
+	newLines := []string{
+		"// Copyright 2024",
+		"package main",
+		"import \"fmt\"",
+		"func hello() { fmt.Println() }",
+	}
+
+	diff := ComputeDiff(JoinLines(oldLines), JoinLines(newLines))
+	result := CreateStages(&StagingParams{
+		Diff:               diff,
+		CursorRow:          3,
+		CursorCol:          0,
+		ViewportTop:        1,
+		ViewportBottom:     50,
+		BaseLineOffset:     1,
+		ProximityThreshold: 3,
+		NewLines:           newLines,
+		OldLines:           oldLines,
+		FilePath:           "test.go",
+	})
+
+	assert.NotNil(t, result, "result")
+	assert.Len(t, 1, result.Stages, "should produce a single stage")
+
+	got := applyStage(oldLines, result.Stages[0])
+	assert.Equal(t, newLines, got, "applying stage should reproduce new buffer")
+}
+
+// TestCreateStages_AnchorlessAdditionBelowModification covers the symmetric
+// case: a modification near the top and an anchorless addition past the end.
+// Without the fix, BufferEnd does not extend to cover the unchanged old lines
+// that map to the new lines bundled into Stage.Lines, so applying the stage
+// leaves the original middle lines duplicated below the new content.
+func TestCreateStages_AnchorlessAdditionBelowModification(t *testing.T) {
+	oldLines := []string{
+		"a",
+		"b",
+		"c",
+	}
+	newLines := []string{
+		"X",
+		"b",
+		"c",
+		"Y",
+	}
+
+	diff := ComputeDiff(JoinLines(oldLines), JoinLines(newLines))
+	result := CreateStages(&StagingParams{
+		Diff:               diff,
+		CursorRow:          1,
+		CursorCol:          0,
+		ViewportTop:        1,
+		ViewportBottom:     50,
+		BaseLineOffset:     1,
+		ProximityThreshold: 5,
+		NewLines:           newLines,
+		OldLines:           oldLines,
+		FilePath:           "test.go",
+	})
+
+	assert.NotNil(t, result, "result")
+	assert.Len(t, 1, result.Stages, "should produce a single stage")
+
+	got := applyStage(oldLines, result.Stages[0])
+	assert.Equal(t, newLines, got, "applying stage should reproduce new buffer")
+}
