@@ -34,6 +34,12 @@ func (e *Engine) requestCompletion(source types.CompletionSource) {
 		return
 	}
 
+	// Drop any leftover stream from a prior accept-during-streaming. The
+	// new request supersedes its "next prediction" output; without this,
+	// the leftover stream's late completion hits handleStreamCompleteAfterAccept
+	// and rewrites state we're about to set up here.
+	e.cancelStreaming()
+
 	e.syncBuffer()
 
 	// No-edit suppression: don't show completions until the file has been edited

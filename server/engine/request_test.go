@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"cursortab/assert"
 	"cursortab/text"
 	"cursortab/types"
@@ -9,6 +10,42 @@ import (
 	"testing"
 	"time"
 )
+
+// TestRequestCompletion_CancelsLeftoverStreamFromAcceptDuringStreaming verifies
+// that requestCompletion cancels any in-flight stream from a prior accept-during-
+// streaming. Without this, the leftover stream completes after the new request
+// starts, and handleStreamCompleteSimple sees acceptedDuringStreaming=true and
+// fires handleStreamCompleteAfterAccept against either the old stream or (for
+// line-stream providers) the new stream's accumulated text — overwriting state
+// the new request is in the middle of setting up.
+func TestRequestCompletion_CancelsLeftoverStreamFromAcceptDuringStreaming(t *testing.T) {
+	buf := newMockBuffer()
+	buf.lines = []string{"existing"}
+	buf.row = 1
+	buf.col = 0
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng, cancel := createTestEngineWithContext(buf, prov, clock)
+	defer cancel()
+
+	eng.manuallyTriggered = true
+
+	streamCtx, streamCancel := context.WithCancel(context.Background())
+	eng.streamingState = &StreamingState{}
+	eng.streamingCancel = streamCancel
+	eng.acceptedDuringStreaming = true
+	eng.state = stateIdle
+
+	eng.requestCompletion(types.CompletionSourceTyping)
+
+	assert.False(t, eng.acceptedDuringStreaming, "flag should be cleared")
+
+	select {
+	case <-streamCtx.Done():
+	default:
+		t.Errorf("stream context should be cancelled before new request starts")
+	}
+}
 
 func TestAcceptCompletion_TriggersPrefetch_ShouldRetrigger(t *testing.T) {
 	buf := newMockBuffer()
