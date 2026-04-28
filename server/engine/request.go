@@ -163,15 +163,27 @@ func (e *Engine) requestPrefetch(source types.CompletionSource, overrideRow, ove
 	e.prefetchCancel = cancel
 	e.prefetchState = prefetchInFlight
 
-	// Snapshot required values to avoid races with buffer mutation
+	// Snapshot required values under the event loop's lock so the goroutine
+	// doesn't race with concurrent mutations of buffer state or fileStateStore.
 	lines := opts.Lines
 	if lines == nil {
 		lines = slices.Clone(e.buffer.Lines())
 	}
-	previousLines := slices.Clone(e.buffer.PreviousLines())
-	version := e.buffer.Version()
-	filePath := e.buffer.Path()
-	viewportHeight := e.getViewportHeightConstraint()
+	req := &types.CompletionRequest{
+		Source:            source,
+		WorkspacePath:     e.WorkspacePath,
+		WorkspaceID:       e.WorkspaceID,
+		FilePath:          e.buffer.Path(),
+		Lines:             lines,
+		Version:           e.buffer.Version(),
+		PreviousLines:     slices.Clone(e.buffer.PreviousLines()),
+		FileDiffHistories: e.getAllFileDiffHistories(),
+		CursorRow:         overrideRow,
+		CursorCol:         overrideCol,
+		ViewportHeight:    e.getViewportHeightConstraint(),
+		MaxVisibleLines:   e.config.MaxVisibleLines,
+		AdditionalContext: e.gatherContext(e.buffer.Path()),
+	}
 
 	go func() {
 		defer cancel()
@@ -185,21 +197,7 @@ func (e *Engine) requestPrefetch(source types.CompletionSource, overrideRow, ove
 			}
 		}()
 
-		result, err := e.provider.GetCompletion(ctx, &types.CompletionRequest{
-			Source:            source,
-			WorkspacePath:     e.WorkspacePath,
-			WorkspaceID:       e.WorkspaceID,
-			FilePath:          filePath,
-			Lines:             lines,
-			Version:           version,
-			PreviousLines:     previousLines,
-			FileDiffHistories: e.getAllFileDiffHistories(),
-			CursorRow:         overrideRow,
-			CursorCol:         overrideCol,
-			ViewportHeight:    viewportHeight,
-			MaxVisibleLines:   e.config.MaxVisibleLines,
-			AdditionalContext: e.gatherContext(filePath),
-		})
+		result, err := e.provider.GetCompletion(ctx, req)
 
 		if err != nil {
 			select {

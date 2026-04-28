@@ -4,7 +4,10 @@ import (
 	"cursortab/assert"
 	"cursortab/text"
 	"cursortab/types"
+	"fmt"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestAcceptCompletion_TriggersPrefetch_ShouldRetrigger(t *testing.T) {
@@ -653,4 +656,70 @@ func TestAcceptLastStage_WaitsForInflightPrefetch(t *testing.T) {
 	// Should wait for prefetch instead of triggering a new request
 	assert.Equal(t, prefetchWaitingForTab, eng.prefetchState, "should be waiting for prefetch")
 	assert.Equal(t, stateIdle, eng.state, "should clear UI while waiting")
+}
+
+// TestRequestPrefetch_NoRaceWithFileStateStoreWrites verifies that the
+// prefetch goroutine does not read shared engine state (specifically
+// fileStateStore) without synchronization. The event loop holds e.mu when
+// dispatching events; the prefetch goroutine must snapshot any required
+// state under that lock before launching, otherwise a concurrent file
+// switch will trigger a fatal "concurrent map iteration and map write"
+// runtime error. Run with `-race` to catch regressions.
+func TestRequestPrefetch_NoRaceWithFileStateStoreWrites(t *testing.T) {
+	buf := newMockBuffer()
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng, cancel := createTestEngineWithContext(buf, prov, clock)
+	defer cancel()
+
+	for i := range 100 {
+		eng.fileStateStore[fmt.Sprintf("file%d.go", i)] = &FileState{
+			DiffHistories: []*types.DiffEntry{{Original: "a", Updated: "b", TimestampNs: 1}},
+			OriginalLines: []string{"line"},
+		}
+	}
+
+	drainStop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-drainStop:
+				return
+			case <-eng.eventChan:
+			}
+		}
+	}()
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			eng.mu.Lock()
+			eng.fileStateStore[fmt.Sprintf("mut%d.go", i%50)] = &FileState{
+				DiffHistories: []*types.DiffEntry{{Original: "x", Updated: "y", TimestampNs: 1}},
+			}
+			eng.mu.Unlock()
+		}
+	}()
+
+	for range 100 {
+		eng.mu.Lock()
+		eng.requestPrefetch(types.CompletionSourceTyping, 1, 0, prefetchOpts{})
+		eng.mu.Unlock()
+		time.Sleep(time.Millisecond)
+	}
+
+	close(stop)
+	wg.Wait()
+	eng.mu.Lock()
+	eng.cancelPrefetch()
+	eng.mu.Unlock()
+	close(drainStop)
 }
