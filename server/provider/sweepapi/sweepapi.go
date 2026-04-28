@@ -124,11 +124,16 @@ func (p *Provider) truncateDiffHistories(histories []*types.FileDiffHistory) []*
 			entry := h.DiffHistory[j]
 			entryBytes := len(entry.Original) + len(entry.Updated)
 			entryLines := strings.Count(entry.Original, "\n") + strings.Count(entry.Updated, "\n") + 2
-			if entryBytes <= remainingBytes && entryLines <= remainingLines {
-				keptEntries = append([]*types.DiffEntry{entry}, keptEntries...)
-				remainingBytes -= entryBytes
-				remainingLines -= entryLines
+			// Stop on the first entry that doesn't fit. Skipping it and
+			// continuing to older entries would silently drop the most
+			// recent change in favor of stale context, misleading the
+			// model about the file's current state.
+			if entryBytes > remainingBytes || entryLines > remainingLines {
+				break
 			}
+			keptEntries = append([]*types.DiffEntry{entry}, keptEntries...)
+			remainingBytes -= entryBytes
+			remainingLines -= entryLines
 		}
 
 		if len(keptEntries) > 0 {

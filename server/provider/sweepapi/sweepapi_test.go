@@ -468,3 +468,30 @@ func TestGetCompletionWithEmptyContextFields(t *testing.T) {
 	assert.True(t, ok, "UserActions should be an array in JSON")
 	assert.Equal(t, 0, len(userActions), "UserActions should be empty")
 }
+
+// TestTruncateDiffHistories_StopsAtFirstOversizedEntry verifies that when
+// the most recent entry is too big to fit, the function does NOT continue
+// pulling in older small entries. Showing older context without the most
+// recent change misleads the model — the file is no longer in the older
+// state, and the most informative recent edit is what the model needs to
+// reason about.
+func TestTruncateDiffHistories_StopsAtFirstOversizedEntry(t *testing.T) {
+	p := &Provider{limits: engine.ContextLimits{
+		MaxInputBytes: 200,
+		MaxInputLines: 100,
+	}}
+
+	histories := []*types.FileDiffHistory{{
+		FileName: "main.go",
+		DiffHistory: []*types.DiffEntry{
+			{Original: "old1", Updated: "new1"},
+			{Original: "old2", Updated: "new2"},
+			// Most recent — over the byte budget.
+			{Original: strings.Repeat("x", 150), Updated: strings.Repeat("y", 150)},
+		},
+	}}
+
+	result := p.truncateDiffHistories(histories)
+
+	assert.Equal(t, 0, len(result), "no entries kept when most recent is oversized")
+}
