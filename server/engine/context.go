@@ -53,6 +53,20 @@ func (e *Engine) handleFileSwitch(oldPath, newPath string, currentLines []string
 		return false
 	}
 
+	// Drop any in-flight or visible completion work tied to the old file.
+	// The old file's prefetched/streaming/staged completions reference its
+	// line content; applying them against the new buffer would render
+	// against the wrong rows. Late-arriving responses for the cancelled
+	// requests are then discarded by the state guards in events.go.
+	e.cancelCurrentRequest()
+	e.cancelPrefetch()
+	e.cancelStreaming()
+	e.cursorTarget = nil
+	e.stagedCompletion = nil
+	e.resetCompletionFields()
+	e.state = stateIdle
+	e.buffer.ClearUI()
+
 	if oldPath != "" {
 		state := e.newFileStateFromBuffer()
 		// Capture first lines for FileChunks context
