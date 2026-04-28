@@ -492,12 +492,17 @@ func finalizeStages(builders []*stageBuilder, newLines []string, oldLines []stri
 
 		// Create cursor target. For the last stage, point to the end of NEW content
 		// (additions may extend past the old buffer end); otherwise point to the
-		// start of the next stage.
+		// start of the next stage. Pure deletions have no new content — the line
+		// after the deleted range shifts down to bufferStart, so target that.
 		var cursorTarget *types.CursorPredictionTarget
 		if isLastStage {
+			targetLine := b.bufferStart + len(stageLines) - 1
+			if len(stageLines) == 0 {
+				targetLine = b.bufferStart
+			}
 			cursorTarget = &types.CursorPredictionTarget{
 				RelativePath:    filePath,
-				LineNumber:      int32(b.bufferStart + len(stageLines) - 1),
+				LineNumber:      int32(targetLine),
 				ShouldRetrigger: true,
 			}
 		} else {

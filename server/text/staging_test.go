@@ -102,6 +102,61 @@ func TestCreateStages_ConsecutiveDeletionsBlankLines(t *testing.T) {
 	assert.Equal(t, 2, len(group.Lines), "group spans both deleted lines")
 }
 
+// TestCreateStages_PureDeletionLastStage_CursorTargetLandsAtSurvivingLine
+// verifies the cursor target for a pure-deletion last stage points to the
+// buffer line that surfaces after the deletion (bufferStart), not bufferStart-1.
+// At bufferStart=1 the buggy formula yields LineNumber=0, which downstream
+// code treats as invalid and silently drops the retrigger target.
+func TestCreateStages_PureDeletionLastStage_CursorTargetLandsAtSurvivingLine(t *testing.T) {
+	tests := []struct {
+		name       string
+		oldLines   []string
+		newLines   []string
+		wantTarget int32
+	}{
+		{
+			name:       "deletion at top of buffer",
+			oldLines:   []string{"delete1", "delete2", "keep1", "keep2"},
+			newLines:   []string{"keep1", "keep2"},
+			wantTarget: 1,
+		},
+		{
+			name:       "deletion in middle of buffer",
+			oldLines:   []string{"keep1", "keep2", "delete1", "delete2", "keep3"},
+			newLines:   []string{"keep1", "keep2", "keep3"},
+			wantTarget: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			diff := ComputeDiff(JoinLines(tt.oldLines), JoinLines(tt.newLines))
+			result := CreateStages(&StagingParams{
+				Diff:               diff,
+				CursorRow:          1,
+				CursorCol:          0,
+				ViewportTop:        1,
+				ViewportBottom:     50,
+				BaseLineOffset:     1,
+				ProximityThreshold: 5,
+				FilePath:           "test.go",
+				NewLines:           tt.newLines,
+				OldLines:           tt.oldLines,
+			})
+
+			assert.NotNil(t, result, "result")
+			assert.Equal(t, 1, len(result.Stages), "single pure-deletion stage")
+
+			stage := result.Stages[0]
+			assert.Equal(t, 0, len(stage.Lines), "pure deletion has no new content")
+			assert.True(t, stage.IsLastStage, "single stage is last stage")
+
+			assert.NotNil(t, stage.CursorTarget, "last stage has cursor target")
+			assert.Equal(t, tt.wantTarget, stage.CursorTarget.LineNumber, "cursor target line")
+		})
+	}
+}
+
 func TestJoinLines(t *testing.T) {
 	lines := []string{"line1", "line2", "line3"}
 	result := JoinLines(lines)
