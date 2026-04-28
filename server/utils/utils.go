@@ -86,7 +86,8 @@ func EstimateCharsFromTokens(tokens int) int {
 // largest window around cursorIdx whose total bytes (line lengths + newlines)
 // fit within maxBytes. The cursor line is always included; remaining budget is
 // split evenly before/after the cursor, with leftover from one side flowing to
-// the other.
+// the other. Returns (0, -1) for empty input so lines[start:end+1] yields an
+// empty slice.
 func BalancedWindowAroundCursor(lines []string, cursorIdx, maxBytes int) (int, int) {
 	if len(lines) == 0 {
 		return 0, -1

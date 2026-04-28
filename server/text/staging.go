@@ -24,14 +24,20 @@ type Stage struct {
 // It exists so the runtime Stage struct doesn't have to carry construction-only
 // fields. Once finalizeStages turns a builder into a Stage, the builder is
 // discarded.
+//
+// Three distinct coordinate systems live on this struct:
+//   - startLine/endLine: each change's MapKey (NewLineNum for non-deletions,
+//     OldLineNum for deletions). Used to track which raw changes belong here.
+//   - newLineStart/newLineEnd: new-file line range whose content forms Stage.Lines.
+//   - bufferStart/bufferEnd: buffer line range (old-file coords + baseLineOffset).
 type stageBuilder struct {
-	rawChanges   []LineChange // Original changes with absolute line nums
-	startLine    int          // First change line (absolute, 1-indexed)
-	endLine      int          // Last change line (absolute, 1-indexed)
-	newLineStart int          // First new-file line whose content belongs to this stage
-	newLineEnd   int          // Last new-file line whose content belongs to this stage
-	bufferStart  int          // Computed buffer range start (1-indexed)
-	bufferEnd    int          // Computed buffer range end (1-indexed, inclusive)
+	rawChanges   []LineChange
+	startLine    int
+	endLine      int
+	newLineStart int
+	newLineEnd   int
+	bufferStart  int
+	bufferEnd    int
 }
 
 // StagingResult contains the result of CreateStages

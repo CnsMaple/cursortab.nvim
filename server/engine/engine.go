@@ -261,6 +261,9 @@ func (e *Engine) cancelCurrentRequest() {
 	}
 }
 
+// cancelPrefetch cancels any in-flight prefetch and discards buffered results.
+// "Cancel" here means both: stop the request if running, and drop any completion
+// that was already returned but not yet consumed.
 func (e *Engine) cancelPrefetch() {
 	if e.prefetchCancel != nil {
 		e.prefetchCancel()

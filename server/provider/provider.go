@@ -18,8 +18,9 @@ type HTTPTransportSetter interface {
 	SetHTTPTransport(rt http.RoundTripper)
 }
 
-// Re-exports of engine streaming-type constants so providers can stay
-// in the provider package without importing engine just for these values.
+// Re-exports of engine streaming-type constants so sub-provider packages
+// (zeta, fim, inline, sweep, ...) can reference them as provider.StreamingX
+// without taking a direct dependency on the engine package.
 const (
 	StreamingNone   = engine.StreamingTypeNone
 	StreamingLines  = engine.StreamingTypeLines

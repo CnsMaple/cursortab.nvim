@@ -4,6 +4,7 @@ import (
 	"cursortab/assert"
 	"cursortab/text"
 	"cursortab/types"
+	"errors"
 	"testing"
 )
 
@@ -23,6 +24,23 @@ func TestReject(t *testing.T) {
 	assert.Nil(t, eng.completions, "completions after reject")
 	assert.Nil(t, eng.cursorTarget, "cursorTarget after reject")
 	assert.Greater(t, buf.clearUICalls, 0, "ClearUI should have been called")
+}
+
+func TestAcceptCompletion_BatchExecuteError_ResetsToIdle(t *testing.T) {
+	buf := newMockBuffer()
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng := createTestEngine(buf, prov, clock)
+
+	eng.state = stateHasCompletion
+	eng.completions = []*types.Completion{{StartLine: 1, EndLineInc: 1, Lines: []string{"x"}}}
+	eng.applyBatch = &mockBatch{err: errors.New("execute failed")}
+
+	eng.acceptCompletion()
+
+	assert.Equal(t, stateIdle, eng.state, "state should reset to idle after batch error")
+	assert.Nil(t, eng.completions, "completions should be cleared after batch error")
+	assert.Nil(t, eng.applyBatch, "applyBatch should be cleared after batch error")
 }
 
 func TestPartialAccept_AppendChars_SingleWord(t *testing.T) {
