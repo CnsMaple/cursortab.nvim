@@ -1647,6 +1647,60 @@ func TestIncrementalStageBuilder_WhitespaceOnlyLineModification(t *testing.T) {
 	assert.Equal(t, 3, addGroup.BufferLine, "addition BufferLine")
 }
 
+func TestIncrementalStageBuilder_WhitespaceCursorLineWithTrailingBlankRemainsModification(t *testing.T) {
+	oldLines := []string{
+		"import numpy as np",
+		"import matplotlib.pyplot as mat",
+		"import pandas as pd",
+		"",
+		`if __name__ == "__main__":`,
+		"    ",
+	}
+
+	builder := NewIncrementalStageBuilder(
+		oldLines,
+		1,    // baseLineOffset
+		10,   // proximityThreshold
+		0,    // maxVisibleLines
+		0, 0, // viewport disabled
+		6, 4, // cursor on the whitespace-only indented line
+		"test.py",
+		0, // availableWidth
+	)
+
+	for _, line := range []string{
+		"import numpy as np",
+		"import matplotlib.pyplot as mat",
+		"import pandas as pd",
+		"",
+		`if __name__ == "__main__":`,
+		"    pass",
+		"",
+	} {
+		builder.AddLine(line)
+	}
+
+	result := builder.Finalize()
+	assert.NotNil(t, result, "expected staging result")
+	assert.Equal(t, 1, len(result.Stages), "stage count")
+
+	stage := result.Stages[0]
+
+	var found bool
+	for _, g := range stage.Groups {
+		if g.BufferLine == 6 {
+			found = true
+			assert.Equal(t, "modification", g.Type, "cursor line should be modification, not addition")
+			assert.Equal(t, "append_chars", g.RenderHint, "cursor line should render inline")
+			assert.Equal(t, []string{"    "}, g.OldLines, "cursor line old content")
+			assert.Equal(t, []string{"    pass"}, g.Lines, "cursor line new content")
+			break
+		}
+	}
+
+	assert.True(t, found, "expected a group anchored at cursor line")
+}
+
 // TestLineSimilarity_EdgeCases tests similarity calculation edge cases.
 func TestLineSimilarity_EdgeCases(t *testing.T) {
 	tests := []struct {

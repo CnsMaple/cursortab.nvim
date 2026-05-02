@@ -101,6 +101,37 @@ func TestAssemblePrompt_CursorPositionInLine(t *testing.T) {
 		"cursor marker inserted at column")
 }
 
+func TestAssemblePrompt_PreservesWhitespaceOnlyCursorLineInStreamOldLines(t *testing.T) {
+	p := newTestProvider()
+	lines := []string{
+		"import numpy as np",
+		"import matplotlib.pyplot as mat",
+		"import pandas as pd",
+		"",
+		`if __name__ == "__main__":`,
+		"    ",
+	}
+	req := &types.CompletionRequest{
+		FilePath:  "test.py",
+		Lines:     lines,
+		CursorRow: 6,
+		CursorCol: 4,
+	}
+	ctx := &provider.Context{
+		Request:      req,
+		TrimmedLines: lines,
+		WindowStart:  0,
+		WindowEnd:    len(lines),
+		CursorLine:   5,
+	}
+
+	_ = assemblePrompt(p, ctx, req)
+
+	assert.Equal(t, lines, ctx.StreamOldLines,
+		"streaming diff window must keep the whitespace-only cursor line")
+	assert.Equal(t, 0, ctx.StreamBaseOff, "stream base offset for full editable range")
+}
+
 func TestAssemblePrompt_SuffixContainsPostEditableLines(t *testing.T) {
 	p := newTestProvider()
 	// 40 lines — editable defaults to ±15 around cursor at line 10, so there

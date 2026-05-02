@@ -173,7 +173,11 @@ func assemblePrompt(p *provider.Provider, ctx *provider.Context, req *types.Comp
 	// newline). Keeping them in old lines causes the diff to flag the missing
 	// blanks as phantom deletions.
 	streamOld := editLines
-	for len(streamOld) > 0 && strings.TrimSpace(streamOld[len(streamOld)-1]) == "" {
+	minKeep := 0
+	if ctx.CursorLine >= editableStart && ctx.CursorLine < editableEnd {
+		minKeep = ctx.CursorLine - editableStart + 1
+	}
+	for len(streamOld) > minKeep && strings.TrimSpace(streamOld[len(streamOld)-1]) == "" {
 		streamOld = streamOld[:len(streamOld)-1]
 	}
 	ctx.StreamOldLines = streamOld
