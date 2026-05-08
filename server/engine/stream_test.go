@@ -266,6 +266,38 @@ func TestTokenStreamingKeepPartial_FullyTyped(t *testing.T) {
 	assert.Equal(t, stateIdle, eng.state, "state after fully typing completion during streaming")
 }
 
+func TestLineStreamingKeepPartial_FullyTypedDoesNotCacheRejection(t *testing.T) {
+	buf := newMockBuffer()
+	buf.lines = []string{"hello world"} // User typed the full completion
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng := createTestEngine(buf, prov, clock)
+
+	eng.state = stateStreamingCompletion
+	eng.streamingState = &StreamingState{}
+	eng.completions = []*types.Completion{{
+		StartLine:  1,
+		EndLineInc: 1,
+		Lines:      []string{"hello world"},
+	}}
+	eng.completionOriginalLines = []string{"hello "}
+	eng.currentRejectedCompletion = &rejectedCompletion{
+		filePath:   buf.Path(),
+		startLine:  1,
+		endLineInc: 1,
+		beforeLine: "",
+		afterLine:  "",
+		oldLines:   []string{"hello"},
+		lines:      []string{"hello world"},
+	}
+	eng.streamLinesChan = make(chan string)
+
+	eng.doRejectStreamingAndDebounce()
+
+	assert.Equal(t, stateIdle, eng.state, "state after fully typing line-streamed completion")
+	assert.Nil(t, eng.rejectedCompletions[buf.Path()], "fully typed streamed completion should not populate rejection cache")
+}
+
 func TestLineStreamingReject_NoKeepPartial(t *testing.T) {
 	buf := newMockBuffer()
 	prov := newMockProvider()
@@ -283,6 +315,56 @@ func TestLineStreamingReject_NoKeepPartial(t *testing.T) {
 
 	// Should transition to Idle (line streaming doesn't keep partial)
 	assert.Equal(t, stateIdle, eng.state, "state after rejecting line streaming")
+}
+
+func TestRenderStreamedStage_SuppressedBeforeRender(t *testing.T) {
+	buf := newMockBuffer()
+	buf.lines = []string{"hello"}
+	buf.row = 1
+	buf.col = 5
+	prov := newMockProvider()
+	clock := newMockClock()
+	eng := createTestEngine(buf, prov, clock)
+
+	eng.currentRejectedCompletion = &rejectedCompletion{
+		filePath:   buf.Path(),
+		startLine:  1,
+		endLineInc: 1,
+		beforeLine: "",
+		afterLine:  "",
+		oldLines:   []string{"hello"},
+		lines:      []string{"hello world"},
+	}
+	eng.rememberRejectedCompletion()
+
+	eng.state = stateStreamingCompletion
+	eng.streamingState = &StreamingState{}
+	eng.streamLinesChan = make(chan string)
+
+	stage := &text.Stage{
+		BufferStart: 1,
+		BufferEnd:   1,
+		Lines:       []string{"hello world"},
+		Groups: []*text.Group{{
+			Type:       "modification",
+			StartLine:  1,
+			EndLine:    1,
+			BufferLine: 1,
+			Lines:      []string{"hello world"},
+			OldLines:   []string{"hello"},
+			RenderHint: "append_chars",
+			ColStart:   5,
+			ColEnd:     11,
+		}},
+	}
+
+	eng.renderStreamedStage(stage)
+
+	assert.Equal(t, 0, buf.prepareCompletionCalls, "suppressed streamed stage should not render")
+	assert.Greater(t, buf.clearUICalls, 0, "suppressed streamed stage should clear UI through reject")
+	assert.Equal(t, stateIdle, eng.state, "state after suppressing streamed stage")
+	assert.Nil(t, eng.streamingState, "streaming state after suppression")
+	assert.Nil(t, eng.streamLinesChan, "stream channel after suppression")
 }
 
 func TestCancelTokenStreamingKeepPartial(t *testing.T) {

@@ -399,12 +399,12 @@ func (e *Engine) doTextChangePending() {
 }
 
 func (e *Engine) doReject() {
-	e.reject()
+	e.rejectAndRemember()
 	e.stopIdleTimer()
 }
 
 func (e *Engine) doRejectAndDebounce() {
-	e.reject()
+	e.rejectAndRemember()
 	e.startTextChangeTimer()
 }
 
@@ -424,7 +424,7 @@ func (e *Engine) doPartialAcceptStreaming() {
 
 func (e *Engine) doRejectStreaming() {
 	e.cancelStreaming()
-	e.reject()
+	e.rejectAndRemember()
 	e.stopIdleTimer()
 }
 
@@ -439,7 +439,12 @@ func (e *Engine) cancelStreamAndCheckTyping(cancelFn func()) bool {
 		e.state = stateHasCompletion
 		return true
 	}
-	e.reject()
+	if matches {
+		e.reject()
+		e.startTextChangeTimer()
+		return true
+	}
+	e.rejectAndRemember()
 	e.startTextChangeTimer()
 	return true
 }

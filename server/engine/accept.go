@@ -8,10 +8,10 @@ import (
 	"cursortab/utils"
 )
 
-// reject clears all state and returns to idle. Cancels in-flight, prefetch,
-// and any leftover stream from a prior accept-during-streaming, drops staged
-// completions, clears the UI, and sends a reject metric if a completion was
-// shown.
+// reject clears all state and returns to idle without caching the current
+// completion as rejected. Cancels in-flight, prefetch, and any leftover stream
+// from a prior accept-during-streaming, drops staged completions, clears the
+// UI, and sends a reject metric if a completion was shown.
 func (e *Engine) reject() {
 	e.cancelCurrentRequest()
 	e.cancelPrefetch()
@@ -24,6 +24,13 @@ func (e *Engine) reject() {
 	e.stagedCompletion = nil
 	e.resetCompletionFields()
 	e.state = stateIdle
+}
+
+// rejectAndRemember clears all state and caches the current completion so
+// similar completions are suppressed for a short TTL.
+func (e *Engine) rejectAndRemember() {
+	e.rememberRejectedCompletion()
+	e.reject()
 }
 
 // acceptCompletion handles Tab key acceptance of completions.
@@ -51,6 +58,9 @@ func (e *Engine) acceptCompletion() {
 
 	// Send accept metric
 	e.sendMetric(metrics.EventAccepted)
+
+	// Accept = forward progress; any cached rejections for this file are stale.
+	e.forgetRejectedCompletions(e.buffer.Path())
 
 	// Sync the current staged completion with what was actually rendered.
 	// When streaming renders a stage incrementally, Finalize() recomputes stages
@@ -137,6 +147,9 @@ func (e *Engine) acceptCursorTarget() {
 	if err := e.buffer.MoveCursor(targetLine, true, true); err != nil {
 		logger.Error("acceptCursorTarget: move cursor failed: %v", err)
 	}
+
+	// Accept = forward progress; any cached rejections for this file are stale.
+	e.forgetRejectedCompletions(e.buffer.Path())
 
 	// 2. If more staged completions, show current stage
 	if e.hasMoreStages() {
@@ -262,13 +275,7 @@ func (e *Engine) showOrNavigateToNextStage() {
 	}
 
 	// Needs navigation - show cursor target instead
-	e.cursorTarget = &types.CursorPredictionTarget{
-		RelativePath:    e.buffer.Path(),
-		LineNumber:      int32(nextStage.BufferStart),
-		ShouldRetrigger: false,
-	}
-	e.state = stateHasCursorTarget
-	e.buffer.ShowCursorTarget(nextStage.BufferStart)
+	e.showStageCursorTarget(nextStage)
 }
 
 // transitionAfterAccept handles state transition after accept based on cursor target.
@@ -457,6 +464,7 @@ func (e *Engine) finalizePartialAccept() {
 
 	e.buffer.CommitPending()
 	e.saveCurrentFileState()
+	e.forgetRejectedCompletions(e.buffer.Path())
 	e.resetCompletionFields()
 
 	if e.stagedCompletion != nil {
@@ -566,4 +574,9 @@ func (e *Engine) rerenderPartial() {
 		originalLines = append(originalLines, bufferLines[i-1])
 	}
 	e.completionOriginalLines = originalLines
+
+	// Refresh the rejection-cache candidate against the new state. Without
+	// this, an Esc after partial accept would cache the pre-partial snapshot,
+	// whose oldLines no longer match the buffer.
+	e.currentRejectedCompletion = e.currentRejectedCompletionCandidate()
 }
