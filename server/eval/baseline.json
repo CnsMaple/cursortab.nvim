@@ -6,10 +6,10 @@
     "quietRate": 1
   },
   "mercuryapi": {
-    "score": 0.5829768999700814,
-    "deltaChrF": 65.23789118712816,
-    "showRate": 1,
-    "quietRate": 0.8076923076923077
+    "score": 0.48855195967062237,
+    "deltaChrF": 61.836045137054626,
+    "showRate": 0.92,
+    "quietRate": 0.6923076923076923
   },
   "qwen3.5-0.8B": {
     "score": 0.21150263013495899,
