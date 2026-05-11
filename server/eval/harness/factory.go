@@ -64,18 +64,10 @@ func BuildProviderForTarget(t Target, baseCfg *types.ProviderConfig, transport h
 		if cfg.ProviderMaxTokens == 0 || cfg.ProviderMaxTokens > 128 {
 			cfg.ProviderMaxTokens = 128
 		}
-		if cfg.FIMTokens.Prefix == "" {
-			cfg.FIMTokens = types.FIMTokenConfig{
-				Prefix: "<|fim_prefix|>",
-				Suffix: "<|fim_suffix|>",
-				Middle: "<|fim_middle|>",
-			}
-		}
 		// Mirror lua client auto-detection (lua/cursortab/config.lua): Qwen
 		// models support repo-level FIM tokens for history/cross-file context.
-		// Without this, eval FIM sees only the broken buffer while production
-		// FIM gets the full edit history.
-		if strings.Contains(strings.ToLower(cfg.ProviderModel), "qwen") {
+		// Only apply when the user has explicitly configured fim_tokens.
+		if cfg.FIMTokens.Prefix != "" && strings.Contains(strings.ToLower(cfg.ProviderModel), "qwen") {
 			if cfg.FIMTokens.RepoName == "" {
 				cfg.FIMTokens.RepoName = "<|repo_name|>"
 			}

@@ -147,12 +147,15 @@ local default_config = {
 		completion_timeout = 5000, -- Timeout in ms for completion requests
 		max_diff_history_tokens = 512, -- Max tokens for diff history (0 = no limit)
 		completion_path = "/v1/completions", -- API endpoint path
-		fim_tokens = { -- FIM tokens (for FIM provider)
-			prefix = "<|fim_prefix|>",
-			suffix = "<|fim_suffix|>",
-			middle = "<|fim_middle|>",
-			repo_name = "", -- Optional: "<|repo_name|>" enables repo-level cross-file context
-			file_sep = "", -- Optional: "<|file_sep|>" enables repo-level cross-file context
+		-- fim_tokens is optional. When omitted, the FIM provider uses the standard
+		-- OpenAI prompt+suffix format (e.g. DeepSeek). When set, it uses tokenized
+		-- FIM with special delimiter tokens.
+		fim_tokens = {
+			prefix = "",
+			suffix = "",
+			middle = "",
+			repo_name = "", -- Optional: "<|repo_name|>" enables cross-file context (auto-detected for Qwen models)
+			file_sep = "", -- Optional: "<|file_sep|>" enables cross-file context (auto-detected for Qwen models)
 		},
 		privacy_mode = true, -- Don't send telemetry to provider
 	},
@@ -480,13 +483,16 @@ function config.setup(user_config)
 	end
 
 	-- Auto-detect repo-level FIM tokens from model name when not explicitly set
-	local user_fim = (user_p.fim_tokens or {})
-	if user_fim.repo_name == nil and user_fim.file_sep == nil then
-		local model_lower = (p.model or ""):lower()
-		-- Qwen family (Qwen2.5-Coder, Qwen3.5) and Zeta (Qwen2.5-Coder based)
-		if model_lower:match("qwen") or (p.type == "zeta") then
-			p.fim_tokens.repo_name = "<|repo_name|>"
-			p.fim_tokens.file_sep = "<|file_sep|>"
+	-- Only apply when the user has explicitly configured fim_tokens.
+	if user_p.fim_tokens ~= nil then
+		local user_fim = user_p.fim_tokens
+		if user_fim.repo_name == nil and user_fim.file_sep == nil then
+			local model_lower = (p.model or ""):lower()
+			-- Qwen family (Qwen2.5-Coder, Qwen3.5) and Zeta (Qwen2.5-Coder based)
+			if model_lower:match("qwen") or (p.type == "zeta") then
+				p.fim_tokens.repo_name = "<|repo_name|>"
+				p.fim_tokens.file_sep = "<|file_sep|>"
+			end
 		end
 	end
 

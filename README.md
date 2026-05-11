@@ -213,7 +213,8 @@ require("cursortab").setup({
     completion_timeout = 5000,            -- Timeout in ms for completion requests
     max_diff_history_tokens = 512,        -- Max tokens for diff history (0 = no limit)
     completion_path = "/v1/completions",  -- API endpoint path
-    fim_tokens = {                        -- FIM tokens (for FIM provider)
+    -- Optional: set to use tokenized FIM. Omit to use prompt+suffix (e.g. DeepSeek).
+    fim_tokens = {
       prefix = "<|fim_prefix|>",
       suffix = "<|fim_suffix|>",
       middle = "<|fim_middle|>",

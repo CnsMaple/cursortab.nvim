@@ -294,6 +294,91 @@ func containsStr(slice []string, s string) bool {
 	return false
 }
 
+func TestBuildPromptPromptSuffix_EmptyLines(t *testing.T) {
+	config := &types.ProviderConfig{
+		ProviderModel: "test-model",
+		FIMTokens:     types.FIMTokenConfig{},
+	}
+	p := NewProvider(config)
+
+	ctx := &provider.Context{
+		Request:      &types.CompletionRequest{},
+		TrimmedLines: []string{},
+		CursorLine:   0,
+	}
+
+	req := p.PromptBuilder(p, ctx)
+
+	assert.Equal(t, "", req.Prompt, "empty prompt should be empty")
+	assert.Equal(t, "", req.Suffix, "empty suffix should be empty")
+	assert.Equal(t, 0, len(req.Stop), "stop should be empty in prompt+suffix mode")
+}
+
+func TestBuildPromptPromptSuffix_SingleLine(t *testing.T) {
+	config := &types.ProviderConfig{
+		ProviderModel: "test-model",
+		FIMTokens:     types.FIMTokenConfig{},
+	}
+	p := NewProvider(config)
+
+	ctx := &provider.Context{
+		Request: &types.CompletionRequest{
+			CursorCol: 5,
+		},
+		TrimmedLines: []string{"hello world"},
+		CursorLine:   0,
+	}
+
+	req := p.PromptBuilder(p, ctx)
+
+	assert.Equal(t, "hello", req.Prompt, "prompt should have text before cursor")
+	assert.Equal(t, " world", req.Suffix, "suffix should have text after cursor")
+	assert.Equal(t, 0, len(req.Stop), "stop should be empty in prompt+suffix mode")
+}
+
+func TestBuildPromptPromptSuffix_MultiLine(t *testing.T) {
+	config := &types.ProviderConfig{
+		ProviderModel: "test-model",
+		FIMTokens:     types.FIMTokenConfig{},
+	}
+	p := NewProvider(config)
+
+	ctx := &provider.Context{
+		Request: &types.CompletionRequest{
+			CursorCol: 4,
+		},
+		TrimmedLines: []string{"line 1", "line 2", "line 3"},
+		CursorLine:   1,
+	}
+
+	req := p.PromptBuilder(p, ctx)
+
+	assert.Equal(t, "line 1\nline", req.Prompt, "prompt should have lines before cursor")
+	assert.Equal(t, " 2\nline 3", req.Suffix, "suffix should have lines after cursor")
+	assert.Equal(t, 0, len(req.Stop), "stop should be empty in prompt+suffix mode")
+}
+
+func TestBuildPromptPromptSuffix_CursorBeyondLine(t *testing.T) {
+	config := &types.ProviderConfig{
+		ProviderModel: "test-model",
+		FIMTokens:     types.FIMTokenConfig{},
+	}
+	p := NewProvider(config)
+
+	ctx := &provider.Context{
+		Request: &types.CompletionRequest{
+			CursorCol: 100,
+		},
+		TrimmedLines: []string{"short"},
+		CursorLine:   0,
+	}
+
+	req := p.PromptBuilder(p, ctx)
+
+	assert.Equal(t, "short", req.Prompt, "prompt should have full line")
+	assert.Equal(t, "", req.Suffix, "suffix should be empty when cursor beyond line")
+}
+
 func TestParseCompletion_SingleLineWithAfterCursor(t *testing.T) {
 	config := &types.ProviderConfig{
 		ProviderModel: "test-model",

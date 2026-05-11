@@ -121,15 +121,16 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid provider.completion_path %q: must start with /", c.Provider.CompletionPath)
 	}
 
-	// Validate fim_tokens fields are all non-empty
-	if c.Provider.FIMTokens.Prefix == "" {
-		return fmt.Errorf("invalid provider.fim_tokens.prefix: must be non-empty")
-	}
-	if c.Provider.FIMTokens.Suffix == "" {
-		return fmt.Errorf("invalid provider.fim_tokens.suffix: must be non-empty")
-	}
-	if c.Provider.FIMTokens.Middle == "" {
-		return fmt.Errorf("invalid provider.fim_tokens.middle: must be non-empty")
+	// Validate fim_tokens fields are all non-empty when the provider is fim
+	// and the user has explicitly configured tokens (non-empty prefix signals
+	// tokenized FIM mode; empty tokens means prompt+suffix mode).
+	if c.Provider.Type == "fim" && c.Provider.FIMTokens.Prefix != "" {
+		if c.Provider.FIMTokens.Suffix == "" {
+			return fmt.Errorf("invalid provider.fim_tokens.suffix: must be non-empty")
+		}
+		if c.Provider.FIMTokens.Middle == "" {
+			return fmt.Errorf("invalid provider.fim_tokens.middle: must be non-empty")
+		}
 	}
 
 	return nil

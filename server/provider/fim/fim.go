@@ -91,22 +91,12 @@ func setStreamContext() provider.Preprocessor {
 
 func buildPrompt(p *provider.Provider, ctx *provider.Context) *openai.CompletionRequest {
 	tokens := p.Config.FIMTokens
-	var prompt strings.Builder
 
-	// Repo-level cross-file context (when repo_name and file_sep are configured)
-	if tokens.RepoName != "" && tokens.FileSep != "" {
-		buildRepoContext(&prompt, p, ctx)
-	}
+	// Build prefix and suffix content (common to both modes)
+	var prefixContent strings.Builder
+	var suffixContent strings.Builder
 
-	// Core FIM prompt
-	if len(ctx.TrimmedLines) == 0 {
-		prompt.WriteString(tokens.Prefix)
-		prompt.WriteString(tokens.Suffix)
-		prompt.WriteString(tokens.Middle)
-	} else {
-		var prefixContent strings.Builder
-		var suffixContent strings.Builder
-
+	if len(ctx.TrimmedLines) > 0 {
 		for i := range ctx.CursorLine {
 			prefixContent.WriteString(ctx.TrimmedLines[i])
 			prefixContent.WriteString("\n")
@@ -123,13 +113,35 @@ func buildPrompt(p *provider.Provider, ctx *provider.Context) *openai.Completion
 			suffixContent.WriteString("\n")
 			suffixContent.WriteString(ctx.TrimmedLines[i])
 		}
-
-		prompt.WriteString(tokens.Prefix)
-		prompt.WriteString(prefixContent.String())
-		prompt.WriteString(tokens.Suffix)
-		prompt.WriteString(suffixContent.String())
-		prompt.WriteString(tokens.Middle)
 	}
+
+	// Prompt+suffix mode (OpenAI completions API style): no FIM tokens configured
+	if tokens.Prefix == "" && tokens.Suffix == "" && tokens.Middle == "" {
+		return &openai.CompletionRequest{
+			Model:       p.Config.ProviderModel,
+			Prompt:      prefixContent.String(),
+			Suffix:      suffixContent.String(),
+			Temperature: p.Config.ProviderTemperature,
+			MaxTokens:   p.Config.ProviderMaxTokens,
+			TopK:        p.Config.ProviderTopK,
+			N:           1,
+			Echo:        false,
+		}
+	}
+
+	// Tokenized FIM mode: concatenate tokens into a single prompt
+	var prompt strings.Builder
+
+	// Repo-level cross-file context (when repo_name and file_sep are configured)
+	if tokens.RepoName != "" && tokens.FileSep != "" {
+		buildRepoContext(&prompt, p, ctx)
+	}
+
+	prompt.WriteString(tokens.Prefix)
+	prompt.WriteString(prefixContent.String())
+	prompt.WriteString(tokens.Suffix)
+	prompt.WriteString(suffixContent.String())
+	prompt.WriteString(tokens.Middle)
 
 	stop := []string{tokens.Prefix, tokens.Suffix, tokens.Middle}
 	if tokens.FileSep != "" {
