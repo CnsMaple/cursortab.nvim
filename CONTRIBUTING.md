@@ -52,7 +52,7 @@ API cost. Results appear in the [benchmarks table](README.md#benchmarks).
 ```bash
 just eval                        # replay, update baseline, fail on regression
 just eval-check                  # CI: fail if baseline differs (no update)
-just eval --targets mercury      # filter by target
+just eval --targets mercuryapi   # filter by target
 just eval --per-scenario=false   # aggregate table only
 ```
 
