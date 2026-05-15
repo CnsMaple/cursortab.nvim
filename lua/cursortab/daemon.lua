@@ -11,10 +11,25 @@ local chan = nil
 local ns_id = vim.api.nvim_create_namespace("cursortab")
 local is_enabled = true
 
+local is_windows = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
+
+local function get_ipc_path(state_dir)
+	if is_windows then
+		return state_dir .. "/cursortab.port"
+	else
+		return state_dir .. "/cursortab.sock"
+	end
+end
+
 -- Check if process with given PID is running
 local function is_process_running(pid)
-	vim.fn.system("kill -0 " .. pid .. " 2>/dev/null")
-	return vim.v.shell_error == 0
+	if is_windows then
+		vim.fn.system('tasklist /FI "PID eq ' .. pid .. '" 2>NUL | findstr /I "' .. pid .. '"')
+		return vim.v.shell_error == 0
+	else
+		vim.fn.system("kill -0 " .. pid .. " 2>/dev/null")
+		return vim.v.shell_error == 0
+	end
 end
 
 -- Read daemon PID from file and check if it's running
@@ -49,7 +64,7 @@ local function start_daemon()
 		binary_name = binary_name .. ".exe"
 	end
 	local binary_path = plugin_dir .. "/server/" .. binary_name
-	local socket_path = state_dir .. "/cursortab.sock"
+	local ipc_path = get_ipc_path(state_dir)
 	local pid_path = state_dir .. "/cursortab.pid"
 
 	-- Check if binary exists
@@ -116,7 +131,7 @@ local function start_daemon()
 	local need_daemon_start = false
 	local config_path = state_dir .. "/cursortab.config.json"
 
-	if vim.fn.filereadable(socket_path) == 0 then
+	if vim.fn.filereadable(ipc_path) == 0 then
 		-- No socket, need to start daemon
 		need_daemon_start = true
 	else
@@ -125,7 +140,7 @@ local function start_daemon()
 
 		if not daemon_running then
 			-- Stale socket, clean up and start fresh
-			vim.fn.delete(socket_path)
+			vim.fn.delete(ipc_path)
 			if vim.fn.filereadable(pid_path) == 1 then
 				vim.fn.delete(pid_path)
 			end
@@ -152,7 +167,7 @@ local function start_daemon()
 		-- Wait for socket (max 1 second)
 		for _ = 1, 10 do
 			vim.wait(100)
-			if vim.fn.filereadable(socket_path) == 1 then
+			if vim.fn.filereadable(ipc_path) == 1 then
 				break
 			end
 		end
@@ -217,11 +232,11 @@ end
 function daemon.check_daemon_status()
 	local cfg = config.get()
 	local state_dir = cfg.state_dir
-	local socket_path = state_dir .. "/cursortab.sock"
+	local ipc_path = get_ipc_path(state_dir)
 	local pid_path = state_dir .. "/cursortab.pid"
 
 	local status = {
-		socket_exists = vim.fn.filereadable(socket_path) == 1,
+		socket_exists = vim.fn.filereadable(ipc_path) == 1,
 		pid_file_exists = vim.fn.filereadable(pid_path) == 1,
 		daemon_running = false,
 		pid = nil,
@@ -249,13 +264,13 @@ end
 local function cleanup_stale_files()
 	local cfg = config.get()
 	local state_dir = cfg.state_dir
-	local socket_path = state_dir .. "/cursortab.sock"
+	local ipc_path = get_ipc_path(state_dir)
 	local pid_path = state_dir .. "/cursortab.pid"
 	local config_path = state_dir .. "/cursortab.config.json"
 
-	-- Remove socket file if it exists
-	if vim.fn.filereadable(socket_path) == 1 then
-		vim.fn.delete(socket_path)
+	-- Remove IPC file if it exists
+	if vim.fn.filereadable(ipc_path) == 1 then
+		vim.fn.delete(ipc_path)
 	end
 
 	-- Remove pid file if it exists
@@ -274,16 +289,16 @@ function daemon.stop_daemon()
 	local cfg = config.get()
 	local state_dir = cfg.state_dir
 	local pid_path = state_dir .. "/cursortab.pid"
-	local socket_path = state_dir .. "/cursortab.sock"
+	local ipc_path = get_ipc_path(state_dir)
 
 	-- Reset channel regardless of outcome
 	chan = nil
 
-	-- If no PID file, just clean up any stale socket
+	-- If no PID file, just clean up any stale IPC
 	if vim.fn.filereadable(pid_path) == 0 then
-		if vim.fn.filereadable(socket_path) == 1 then
-			vim.fn.delete(socket_path)
-			return true, "Cleaned up stale socket (no PID file)"
+		if vim.fn.filereadable(ipc_path) == 1 then
+			vim.fn.delete(ipc_path)
+			return true, "Cleaned up stale IPC (no PID file)"
 		end
 		return true, "Daemon not running (no PID file)"
 	end
@@ -300,25 +315,35 @@ function daemon.stop_daemon()
 	end
 
 	-- Send TERM signal to daemon
-	vim.fn.system("kill " .. pid .. " 2>/dev/null")
-	local kill_sent = vim.v.shell_error == 0
+	local kill_sent
+	if is_windows then
+		vim.fn.system('taskkill /PID ' .. pid)
+		kill_sent = vim.v.shell_error == 0
+	else
+		vim.fn.system("kill " .. pid .. " 2>/dev/null")
+		kill_sent = vim.v.shell_error == 0
+	end
 
 	if not kill_sent then
 		cleanup_stale_files()
 		return true, "Cleaned up stale files (could not signal process)"
 	end
 
-	-- Wait for socket to be removed (daemon cleanup)
+	-- Wait for IPC to be removed (daemon cleanup)
 	for _ = 1, 50 do
 		vim.wait(100)
-		if vim.fn.filereadable(socket_path) == 0 then
+		if vim.fn.filereadable(ipc_path) == 0 then
 			return true, "Daemon stopped successfully"
 		end
 	end
 
-	-- Process didn't terminate gracefully, send SIGKILL
+	-- Process didn't terminate gracefully, force kill
 	if is_process_running(pid) then
-		vim.fn.system("kill -9 " .. pid .. " 2>/dev/null")
+		if is_windows then
+			vim.fn.system('taskkill /F /PID ' .. pid)
+		else
+			vim.fn.system("kill -9 " .. pid .. " 2>/dev/null")
+		end
 		-- Brief wait for forced termination
 		vim.wait(100)
 	end

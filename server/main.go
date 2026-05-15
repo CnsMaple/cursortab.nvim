@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 // CursorPredictionConfig holds cursor prediction settings
@@ -164,10 +163,6 @@ func setupLogger(stateDir, logLevel string) *logger.LimitedLogger {
 	return logger.NewLimitedLogger(f, level)
 }
 
-func getSocketPath(stateDir string) string {
-	return filepath.Join(stateDir, "cursortab.sock")
-}
-
 func getPidPath(stateDir string) string {
 	return filepath.Join(stateDir, "cursortab.pid")
 }
@@ -184,15 +179,8 @@ func isDaemonRunning(stateDir string) (bool, int) {
 		return false, 0
 	}
 
-	// Check if process is still running
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false, 0
-	}
-
-	// On Unix, Signal(0) checks if process exists
-	err = process.Signal(syscall.Signal(0))
-	return err == nil, pid
+	running := isProcessRunning(pid)
+	return running, pid
 }
 
 // loadConfig parses config from CURSORTAB_CONFIG env var.
