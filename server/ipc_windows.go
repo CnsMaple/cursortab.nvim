@@ -21,10 +21,12 @@ func listenIPC(stateDir string) (net.Listener, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", l.Addr().(*net.TCPAddr).Port)
-	portPath := getIPCAddress(stateDir)
-	os.WriteFile(portPath, []byte(strconv.Itoa(l.Addr().(*net.TCPAddr).Port)), 0644)
-	return l, addr, nil
+	port := l.Addr().(*net.TCPAddr).Port
+	if err := os.WriteFile(getIPCAddress(stateDir), []byte(strconv.Itoa(port)), 0644); err != nil {
+		l.Close()
+		return nil, "", err
+	}
+	return l, fmt.Sprintf("127.0.0.1:%d", port), nil
 }
 
 func dialIPC(stateDir string) (net.Conn, error) {

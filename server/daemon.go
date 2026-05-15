@@ -135,14 +135,14 @@ func NewDaemon(config Config) (*Daemon, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Daemon{
-		config:     config,
-		provider:   prov,
-		buffer:     buf,
-		engine:     eng,
-		pidPath:    getPidPath(config.StateDir),
-		shutdown:   make(chan bool, 1),
-		ctx:        ctx,
-		cancel:     cancel,
+		config:   config,
+		provider: prov,
+		buffer:   buf,
+		engine:   eng,
+		pidPath:  getPidPath(config.StateDir),
+		shutdown: make(chan bool, 1),
+		ctx:      ctx,
+		cancel:   cancel,
 	}, nil
 }
 
