@@ -15,11 +15,11 @@ local is_windows = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
 local ffi = require("ffi")
 
 if is_windows then
-	ffi.cdef[[
+	ffi.cdef([[
 		void* __stdcall OpenProcess(uint32_t dwDesiredAccess, int bInheritHandle, uint32_t dwProcessId);
 		int __stdcall CloseHandle(void* hObject);
 		int __stdcall GetExitCodeProcess(void* hProcess, uint32_t* lpExitCode);
-	]]
+	]])
 end
 
 local function get_ipc_path(state_dir)
@@ -196,6 +196,11 @@ local function start_daemon()
 					vim.defer_fn(function()
 						try_connect(attempts - 1)
 					end, 100)
+				else
+					vim.notify(
+						"cursortab: daemon failed to create IPC file at " .. ipc_path .. " (timed out after 10s)",
+						vim.log.levels.ERROR
+					)
 				end
 			end
 			try_connect(100)
@@ -347,7 +352,7 @@ function daemon.stop_daemon()
 	-- Send TERM signal to daemon
 	local kill_sent
 	if is_windows then
-		vim.fn.system('taskkill /PID ' .. pid)
+		vim.fn.system("taskkill /PID " .. pid)
 		kill_sent = vim.v.shell_error == 0
 	else
 		vim.fn.system("kill " .. pid .. " 2>/dev/null")
@@ -370,7 +375,7 @@ function daemon.stop_daemon()
 	-- Process didn't terminate gracefully, force kill
 	if is_process_running(pid) then
 		if is_windows then
-			vim.fn.system('taskkill /F /PID ' .. pid)
+			vim.fn.system("taskkill /F /PID " .. pid)
 		else
 			vim.fn.system("kill -9 " .. pid .. " 2>/dev/null")
 		end
