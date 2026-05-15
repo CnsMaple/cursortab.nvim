@@ -281,10 +281,10 @@ func (d *Daemon) monitorIdleShutdown() {
 
 func (d *Daemon) Stop() {
 	d.engine.Stop()
+	d.cancel()
 	if d.listener != nil {
 		d.listener.Close()
 	}
-	d.cancel()
 }
 
 func (d *Daemon) writePidFile() {
