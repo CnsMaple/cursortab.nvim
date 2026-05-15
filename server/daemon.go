@@ -6,10 +6,8 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/signal"
 	"strconv"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"cursortab/buffer"
@@ -36,7 +34,6 @@ type Daemon struct {
 	buffer      *buffer.NvimBuffer
 	engine      *engine.Engine
 	listener    net.Listener
-	socketPath  string
 	pidPath     string
 	clientCount int64
 	shutdown    chan bool
@@ -142,7 +139,6 @@ func NewDaemon(config Config) (*Daemon, error) {
 		provider:   prov,
 		buffer:     buf,
 		engine:     eng,
-		socketPath: getSocketPath(config.StateDir),
 		pidPath:    getPidPath(config.StateDir),
 		shutdown:   make(chan bool, 1),
 		ctx:        ctx,
@@ -155,13 +151,15 @@ func (d *Daemon) Start() error {
 	d.writePidFile()
 	defer d.removePidFile()
 
-	// Setup socket
-	if err := d.setupSocket(); err != nil {
+	// Setup IPC
+	listener, err := listenIPC(d.config.StateDir)
+	if err != nil {
 		return err
 	}
-	defer d.cleanup()
+	d.listener = listener
+	defer cleanupIPC(d.config.StateDir)
 
-	logger.Info("daemon listening on socket: %s", d.socketPath)
+	logger.Info("daemon listening on: %s", getIPCAddress(d.config.StateDir))
 
 	// Start engine
 	d.engine.Start(d.ctx)
@@ -181,27 +179,11 @@ func (d *Daemon) Start() error {
 	return nil
 }
 
-func (d *Daemon) setupSocket() error {
-	// Remove existing socket
-	os.Remove(d.socketPath)
-
-	// Listen on Unix socket
-	listener, err := net.Listen("unix", d.socketPath)
-	if err != nil {
-		return err
-	}
-	d.listener = listener
-	return nil
-}
-
 func (d *Daemon) setupShutdownHandling() {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
+	setupShutdownHandler(func() {
 		logger.Info("received shutdown signal")
 		d.Stop()
-	}()
+	})
 }
 
 func (d *Daemon) acceptConnections() {
@@ -303,10 +285,6 @@ func (d *Daemon) Stop() {
 		d.listener.Close()
 	}
 	d.cancel()
-}
-
-func (d *Daemon) cleanup() {
-	os.Remove(d.socketPath)
 }
 
 func (d *Daemon) writePidFile() {
