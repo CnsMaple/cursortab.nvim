@@ -13,6 +13,15 @@ local event_debounce_timer = nil
 local is_enabled = true
 
 local is_windows = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
+local ffi = require("ffi")
+
+if is_windows then
+	ffi.cdef[[
+		void* __stdcall OpenProcess(uint32_t dwDesiredAccess, int bInheritHandle, uint32_t dwProcessId);
+		int __stdcall CloseHandle(void* hObject);
+		int __stdcall GetExitCodeProcess(void* hProcess, uint32_t* lpExitCode);
+	]]
+end
 
 local function get_ipc_path(state_dir)
 	if is_windows then
@@ -25,8 +34,16 @@ end
 -- Check if process with given PID is running
 local function is_process_running(pid)
 	if is_windows then
-		vim.fn.system('tasklist /FI "PID eq ' .. pid .. '" 2>NUL | findstr /I "' .. pid .. '"')
-		return vim.v.shell_error == 0
+		local PROCESS_QUERY_INFORMATION = 0x0400
+		local STILL_ACTIVE = 259
+		local h = ffi.C.OpenProcess(PROCESS_QUERY_INFORMATION, false, pid)
+		if h == ffi.NULL or h == nil then
+			return false
+		end
+		local exitCode = ffi.new("uint32_t[1]")
+		ffi.C.GetExitCodeProcess(h, exitCode)
+		ffi.C.CloseHandle(h)
+		return exitCode[0] == STILL_ACTIVE
 	else
 		vim.fn.system("kill -0 " .. pid .. " 2>/dev/null")
 		return vim.v.shell_error == 0
