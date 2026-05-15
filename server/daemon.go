@@ -152,14 +152,14 @@ func (d *Daemon) Start() error {
 	defer d.removePidFile()
 
 	// Setup IPC
-	listener, err := listenIPC(d.config.StateDir)
+	listener, addr, err := listenIPC(d.config.StateDir)
 	if err != nil {
 		return err
 	}
 	d.listener = listener
 	defer cleanupIPC(d.config.StateDir)
 
-	logger.Info("daemon listening on: %s", getIPCAddress(d.config.StateDir))
+	logger.Info("daemon listening on: %s", addr)
 
 	// Start engine
 	d.engine.Start(d.ctx)

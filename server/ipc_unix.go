@@ -14,10 +14,11 @@ func getIPCAddress(stateDir string) string {
 	return filepath.Join(stateDir, "cursortab.sock")
 }
 
-func listenIPC(stateDir string) (net.Listener, error) {
+func listenIPC(stateDir string) (net.Listener, string, error) {
 	path := getIPCAddress(stateDir)
 	os.Remove(path)
-	return net.Listen("unix", path)
+	l, err := net.Listen("unix", path)
+	return l, path, err
 }
 
 func dialIPC(stateDir string) (net.Conn, error) {

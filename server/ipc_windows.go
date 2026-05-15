@@ -16,15 +16,15 @@ func getIPCAddress(stateDir string) string {
 	return filepath.Join(stateDir, "cursortab.port")
 }
 
-func listenIPC(stateDir string) (net.Listener, error) {
+func listenIPC(stateDir string) (net.Listener, string, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	port := l.Addr().(*net.TCPAddr).Port
+	addr := fmt.Sprintf("127.0.0.1:%d", l.Addr().(*net.TCPAddr).Port)
 	portPath := getIPCAddress(stateDir)
-	os.WriteFile(portPath, []byte(strconv.Itoa(port)), 0644)
-	return l, nil
+	os.WriteFile(portPath, []byte(strconv.Itoa(l.Addr().(*net.TCPAddr).Port)), 0644)
+	return l, addr, nil
 }
 
 func dialIPC(stateDir string) (net.Conn, error) {
