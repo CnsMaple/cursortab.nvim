@@ -181,13 +181,23 @@ local function start_daemon()
 		-- Write config so future connections can detect changes
 		vim.fn.writefile({ json_config }, config_path)
 
-		-- Wait for socket (max 1 second)
-		for _ = 1, 10 do
-			vim.wait(100)
+		-- Async wait for IPC file, then connect RPC
+		local function try_connect(attempts)
 			if vim.fn.filereadable(ipc_path) == 1 then
-				break
+				chan = vim.fn.jobstart({ binary_path }, {
+					rpc = true,
+					env = env,
+				})
+				return
+			end
+			if attempts > 0 then
+				vim.defer_fn(function()
+					try_connect(attempts - 1)
+				end, 100)
 			end
 		end
+		try_connect(100)
+		return true
 	end
 
 	-- Connect to daemon
