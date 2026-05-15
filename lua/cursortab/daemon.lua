@@ -173,30 +173,33 @@ local function start_daemon()
 	end
 
 	if need_daemon_start then
-		vim.fn.jobstart({ binary_path, "--daemon" }, {
-			env = env,
-			detach = true,
-		})
+		-- Defer process creation so UI renders first (Windows CreateProcess blocks ~1.5s)
+		vim.defer_fn(function()
+			vim.fn.jobstart({ binary_path, "--daemon" }, {
+				env = env,
+				detach = true,
+			})
 
-		-- Write config so future connections can detect changes
-		vim.fn.writefile({ json_config }, config_path)
+			-- Write config so future connections can detect changes
+			vim.fn.writefile({ json_config }, config_path)
 
-		-- Async wait for IPC file, then connect RPC
-		local function try_connect(attempts)
-			if vim.fn.filereadable(ipc_path) == 1 then
-				chan = vim.fn.jobstart({ binary_path }, {
-					rpc = true,
-					env = env,
-				})
-				return
+			-- Async wait for IPC file, then connect RPC
+			local function try_connect(attempts)
+				if vim.fn.filereadable(ipc_path) == 1 then
+					chan = vim.fn.jobstart({ binary_path }, {
+						rpc = true,
+						env = env,
+					})
+					return
+				end
+				if attempts > 0 then
+					vim.defer_fn(function()
+						try_connect(attempts - 1)
+					end, 100)
+				end
 			end
-			if attempts > 0 then
-				vim.defer_fn(function()
-					try_connect(attempts - 1)
-				end, 100)
-			end
-		end
-		try_connect(100)
+			try_connect(100)
+		end, 0)
 		return true
 	end
 
